@@ -1,0 +1,196 @@
+---
+// PROTOTYPE shell: header, search, trail, filters and the variant switcher shared by all variants.
+import "../../styles/global.css";
+import { shows, type Show } from "../../lib/data";
+import { VARIANTS } from "../../lib/prototype";
+
+interface Props { title: string; show?: Show; variant?: string }
+const { title, show, variant } = Astro.props;
+
+const count = <T,>(xs: T[]) => [...xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<T, number>())]
+  .sort((a, b) => b[1] - a[1]).map(([x]) => x);
+const services = count(shows.flatMap((s) => s.providers.map((p) => p.name))).slice(0, 10);
+const LANGS: Record<string, string> = { en: "English", hi: "Hindi", ko: "Korean", ja: "Japanese", es: "Spanish", ta: "Tamil", te: "Telugu", ml: "Malayalam", zh: "Chinese", tr: "Turkish", fr: "French", de: "German" };
+const langs = count(shows.map((s) => s.lang)).filter((l) => LANGS[l]).slice(0, 10);
+
+const vi = VARIANTS.findIndex((v) => v.key === variant);
+const prev = vi >= 0 ? VARIANTS[(vi + VARIANTS.length - 1) % VARIANTS.length] : null;
+const next = vi >= 0 ? VARIANTS[(vi + 1) % VARIANTS.length] : null;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{title}</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://image.tmdb.org" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet" />
+</head>
+<body
+  data-variant={variant}
+  data-show-id={show?.id}
+  data-show-slug={show?.slug}
+  data-show-name={show?.name}
+  data-show-poster={show?.poster ?? ""}
+  data-services={JSON.stringify(services)}
+>
+  <header class="top wrap">
+    <a href="/" class="brand">Shows<span>Like</span>Map</a>
+    <button class="search-btn" id="open-search" aria-label="Search shows">⌕ <span>Search a show</span></button>
+  </header>
+
+  {show && (
+    <div class="wrap bar">
+      <nav class="trail" id="trail" aria-label="Your path"></nav>
+      <script is:inline>
+        // Built before first paint so the page you came from can morph into its chip (view-transition-name: prev-hero).
+        (() => {
+          const el = document.getElementById("trail"), d = document.body.dataset, slug = d.showSlug;
+          if (!slug) return;
+          let trail = [];
+          try { trail = JSON.parse(sessionStorage.getItem("slm:trail") || "[]"); } catch {}
+          const at = trail.findIndex((t) => t.slug === slug);
+          const arrived = at < 0; // a step forward, not a step back along the path
+          if (arrived) trail.push({ id: d.showId, slug, name: d.showName || "", poster: d.showPoster || "" });
+          else trail = trail.slice(0, at + 1);
+          trail = trail.slice(-12);
+          try { sessionStorage.setItem("slm:trail", JSON.stringify(trail)); } catch {}
+          if (trail.length < 2) return;
+          const base = "/prototype/" + (d.variant || "explore") + "/";
+          const esc = (s) => String(s).replace(/[&<>"']/g, (c) => "&#" + c.charCodeAt(0) + ";");
+          el.innerHTML = '<span class="trail-label">Your path</span>' + trail.map((t, i) => {
+            const vt = arrived && i === trail.length - 2 ? ' style="view-transition-name: prev-hero"' : "";
+            const img = t.poster ? '<img src="https://image.tmdb.org/t/p/w92' + t.poster + '" alt=""' + vt + ">" : "";
+            const cur = i === trail.length - 1 ? ' aria-current="page"' : "";
+            return (i ? '<span class="sep"></span>' : "") + '<a href="' + base + t.slug + '"' + cur + ">" + img + "<span>" + esc(t.name) + "</span></a>";
+          }).join("");
+          el.scrollLeft = el.scrollWidth;
+        })();
+      </script>
+      <div class="filters" id="filters">
+        <button class="fchip" data-f="finished" aria-pressed="false">Finished only</button>
+        <label class="fchip select">
+          <span class="sr-only">Max hours</span>
+          <select data-f="hours">
+            <option value="0">Any length</option>
+            <option value="10">≤ 10 h</option>
+            <option value="20">≤ 20 h</option>
+            <option value="40">≤ 40 h</option>
+            <option value="80">≤ 80 h</option>
+          </select>
+        </label>
+        <details class="fchip services">
+          <summary data-services-summary>My services</summary>
+          <div class="services-pop">
+            {services.map((s) => <label><input type="checkbox" data-f="service" value={s} /> {s}</label>)}
+          </div>
+        </details>
+        <label class="fchip select">
+          <span class="sr-only">Language</span>
+          <select data-f="lang">
+            <option value="">Any language</option>
+            {langs.map((l) => <option value={l}>{LANGS[l]}</option>)}
+          </select>
+        </label>
+        <span class="fcount muted" id="fcount"></span>
+      </div>
+    </div>
+  )}
+
+  <slot />
+
+  <footer class="wrap foot muted">
+    Prototype · Data from TMDB (not endorsed or certified by TMDB) · Streaming data by JustWatch
+  </footer>
+
+  <div class="search" id="search" hidden>
+    <div class="search-box wrap">
+      <input id="search-input" type="search" placeholder="A show you loved…" autocomplete="off" aria-label="Search shows" />
+      <button id="close-search" aria-label="Close search">✕</button>
+    </div>
+    <ol class="search-results wrap" id="search-results"></ol>
+  </div>
+
+  {variant && show && prev && next && (
+    <nav class="switcher" aria-label="Prototype variant">
+      <a href={`/prototype/${prev.key}/${show.slug}`} data-switch="prev" aria-label={`Previous: ${prev.name}`}>◀</a>
+      <span><b>{String.fromCharCode(65 + vi)}</b> · {VARIANTS[vi].name}</span>
+      <a href={`/prototype/${next.key}/${show.slug}`} data-switch="next" aria-label={`Next: ${next.name}`}>▶</a>
+    </nav>
+  )}
+
+  <script>
+    import { initShell } from "../../lib/client/shell";
+    initShell();
+  </script>
+</body>
+</html>
+
+<style is:global>
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; padding-bottom: 10px; }
+  .brand { font: 800 19px var(--font-display); letter-spacing: -0.02em; }
+  .brand span { color: var(--accent); }
+  .search-btn {
+    display: flex; gap: 8px; align-items: center; padding: 8px 14px; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--line); cursor: pointer; color: var(--muted);
+  }
+  @media (max-width: 420px) { .search-btn span { display: none; } }
+
+  .bar { display: grid; gap: 8px; margin-bottom: 8px; }
+  .trail { display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; min-height: 0; padding: 2px 0; }
+  .trail:empty { display: none; }
+  .trail-label { flex: none; margin-right: 8px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+  .trail a {
+    display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; flex: none;
+    background: var(--surface); border: 1px solid var(--line); font-size: 12px; max-width: 150px;
+  }
+  .trail a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trail a img { width: 20px; height: 30px; border-radius: 4px; object-fit: cover; }
+  .trail a[aria-current] { border-color: var(--accent); background: rgb(255 211 107 / 0.12); }
+  .trail .sep { flex: none; width: 14px; height: 2px; background: linear-gradient(90deg, var(--line), var(--accent)); }
+
+  .filters { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; align-items: center; padding-bottom: 2px; }
+  .fchip {
+    flex: none; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line);
+    font-size: 13px; cursor: pointer; position: relative;
+  }
+  .fchip[aria-pressed="true"], .fchip.on { background: var(--accent); color: #111; border-color: var(--accent); }
+  .fchip select { background: none; border: 0; color: inherit; font: inherit; outline: none; }
+  .fchip select option { color: #111; }
+  .services { list-style: none; }
+  .services summary { list-style: none; cursor: pointer; }
+  .services summary::-webkit-details-marker { display: none; }
+  .services-pop {
+    position: fixed; z-index: 60; margin-top: 10px; padding: 10px 12px; display: grid; gap: 6px;
+    background: #15171f; color: #eef0f6; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 30px rgb(0 0 0 / 0.5);
+  }
+  .services-pop label { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+  .fcount { font-size: 12px; flex: none; padding-left: 4px; }
+
+  .foot { padding: 40px 16px 120px; font-size: 12px; }
+
+  .search { position: fixed; inset: 0; z-index: 80; background: rgb(7 8 12 / 0.92); backdrop-filter: blur(14px); padding-top: 14px; overflow-y: auto; }
+  .search-box { display: flex; gap: 8px; }
+  .search-box input {
+    flex: 1; font-size: 18px; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--line);
+    background: var(--surface-2); color: #fff; outline: none;
+  }
+  .search-box button { background: none; border: 0; font-size: 20px; color: #fff; cursor: pointer; padding: 0 8px; }
+  .search-results { list-style: none; margin-top: 12px; display: grid; gap: 4px; color: #eef0f6; }
+  .search-results a { display: flex; gap: 12px; align-items: center; padding: 8px; border-radius: 10px; }
+  .search-results a:hover, .search-results a.active { background: rgb(255 255 255 / 0.08); }
+  .search-results img, .search-results .ph { width: 36px; height: 54px; border-radius: 6px; object-fit: cover; background: rgb(255 255 255 / 0.1); flex: none; }
+  .search-results small { color: #9aa0b2; display: block; }
+
+  .switcher {
+    position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 90;
+    display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px;
+    background: #fff; color: #111; font-size: 13px; box-shadow: 0 8px 30px rgb(0 0 0 / 0.45); white-space: nowrap;
+  }
+  .switcher a { padding: 6px 12px; border-radius: 999px; }
+  .switcher a:hover { background: #eee; }
+  .switcher span { padding: 0 6px; }
+</style>

@@ -1,0 +1,44 @@
+---
+// PROTOTYPE home: a way in. Pick a start show, then try each variant from the bottom bar.
+import Shell from "../components/prototype/Shell.astro";
+import { shows, poster } from "../lib/data";
+
+const PICKS = ["Dark", "Panchayat", "Breaking Bad", "Squid Game", "Kota Factory", "Friends", "Stranger Things", "Attack on Titan", "Mirzapur", "The Office", "Severance", "Money Heist"];
+const byName = new Map(shows.map((s) => [s.name.toLowerCase(), s]));
+const starters = PICKS.map((n) => byName.get(n.toLowerCase())).filter((s) => s !== undefined);
+const popular = [...shows].sort((a, b) => b.popularity - a.popularity).filter((s) => !starters.includes(s)).slice(0, 24);
+---
+<Shell title="Shows Like Map: find your next show">
+  <main class="wrap home">
+    <h1>Loved a show?<br /><span>Find the next one.</span></h1>
+    <p class="muted lead">Start from a show you liked and hop through similar ones, with how long each takes to finish and where it streams in India.</p>
+    <button class="big-search" data-open-search>⌕ Search a show you loved…</button>
+
+    <h2>Or start from one of these</h2>
+    <div class="grid">
+      {[...starters, ...popular].map((s) => (
+        <a href={`/prototype/explore/${s.slug}`} data-hop={s.id} class="tile">
+          {s.poster ? <img src={poster(s.poster, "w185")} alt="" class="poster" loading="lazy" /> : <div class="poster-ph">{s.name}</div>}
+          <span>{s.name}</span>
+        </a>
+      ))}
+    </div>
+    <p class="muted note">Prototype: {shows.length.toLocaleString()} shows. Each show page has four variants (Orbit, Reason rows, Deck, Drill down); switch with the bar at the bottom or the ← → keys.</p>
+  </main>
+</Shell>
+
+<style>
+  .home { padding-top: 6vh; }
+  h1 { font-size: clamp(36px, 9vw, 76px); line-height: 0.98; letter-spacing: -0.03em; }
+  h1 span { color: var(--accent); }
+  .lead { font-size: 17px; max-width: 46ch; }
+  .big-search {
+    width: min(100%, 560px); text-align: left; padding: 16px 20px; border-radius: 16px; font-size: 17px; cursor: pointer;
+    background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); margin: 8px 0 40px;
+  }
+  h2 { font-size: 18px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 14px; }
+  .tile { display: grid; gap: 6px; font-size: 12.5px; transition: translate 0.2s; }
+  .tile:hover { translate: 0 -3px; }
+  .note { font-size: 12px; margin-top: 30px; }
+</style>

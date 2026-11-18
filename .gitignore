@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.astro/
+# TMDB data is never committed (TMDB API terms)
+data/
+src/data/generated/
+.env

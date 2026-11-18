@@ -1,0 +1,203 @@
+---
+// PROTOTYPE variant D, "Drill down": B's reason rows with one simple loop.
+// Tap a show to go deeper (its poster grows into the hero, the old show shrinks into "Your path"),
+// hold one to peek at its matches, and open the path map to see how you got here.
+// Styles are global under .ex because the fan and the map are built in the browser.
+import { reasonRows, aiPicks, poster, lengthLabel, toM, votesLabel, showRating, STATUS_LABEL, IMG, type Show } from "../../lib/data";
+import { cardHtml } from "../../lib/explore";
+
+interface Props { show: Show }
+const { show } = Astro.props;
+const rows = reasonRows(show);
+const ai = aiPicks(show);
+const rating = showRating(show);
+---
+<div class="ex">
+  <section class="hero">
+    {show.backdrop && <img class="backdrop" src={`${IMG}w780${show.backdrop}`} alt="" />}
+    <div class="wrap hero-in">
+      {show.poster
+        ? <img src={poster(show.poster, "w342")} alt={`${show.name} poster`} class="poster h-poster" data-hero-poster style="view-transition-name: hero-poster" />
+        : <div class="poster-ph h-poster" data-hero-poster style="view-transition-name: hero-poster">{show.name}</div>}
+      <div class="h-text">
+        <p class="eyebrow">If you liked</p>
+        <h1>{show.name}</h1>
+        <p class="meta">
+          {show.year} · <span class={`badge ${show.status}`}>{STATUS_LABEL[show.status]}</span>
+          {lengthLabel(show) && <> · {lengthLabel(show)}</>}
+        </p>
+        <div class="h-row">
+          {rating && show.rating && (
+            <a class="score" href={`https://www.themoviedb.org/tv/${show.id}`} target="_blank" rel="noopener" title="TMDB user score">
+              <b>TMDB</b> ★ {rating.toFixed(1)} <small>{votesLabel(show.rating.votes)} votes</small>
+            </a>
+          )}
+          <div class="providers">
+            {show.providers.length
+              ? show.providers.map((p) => <img src={`${IMG}w92${p.logo}`} alt={p.name} title={p.name} />)
+              : <span class="muted" style="font-size:12px">Not streaming in India</span>}
+          </div>
+        </div>
+        <p class="ov">{show.overview}</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="wrap tip muted"><b>Tap</b> a show to go deeper · <b>hold</b> to peek at its matches</p>
+
+  <div class="rows" id="rows">
+    {ai && (
+      <section class="row ai-row" data-row>
+        <header class="wrap row-head">
+          <h2>✦ New: AI picks <small class="muted">open-data test</small></h2>
+          <span class="muted row-count" data-row-count>{ai.length}</span>
+        </header>
+        <div class="track" set:html={ai.map((m) => cardHtml(m, true)).join("")} />
+        <p class="wrap row-empty muted" hidden>All hidden by your filters</p>
+      </section>
+    )}
+    {rows.map((row) => (
+      <section class="row" data-row>
+        <header class="wrap row-head">
+          <h2>{row.title}{ai && row.key === "best" && <small class="muted"> current formula</small>}</h2>
+          <span class="muted row-count" data-row-count>{row.items.length}</span>
+        </header>
+        <div class="track" set:html={row.items.map((m) => cardHtml(toM(m.show, m.reasons), row.key === "best")).join("")} />
+        <p class="wrap row-empty muted" hidden>All hidden by your filters</p>
+      </section>
+    ))}
+  </div>
+
+  <button class="map-btn" id="map-open" hidden>✦ Path map</button>
+
+  <div class="fan" id="fan" hidden></div>
+
+  <div class="map" id="map" hidden>
+    <div class="map-world" id="map-world"></div>
+    <header class="map-head">
+      <b>Your path</b>
+      <span class="muted" id="map-stats"></span>
+      <button id="map-close" aria-label="Close the map">✕</button>
+    </header>
+    <p class="map-tip muted">Gold is the way you came · faint ones are roads not taken · tap any poster to go there</p>
+  </div>
+</div>
+
+<style is:global>
+  /* ---------- hero ---------- */
+  .ex .hero { position: relative; overflow: hidden; padding: 12px 0 18px; }
+  .ex .backdrop {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.32; z-index: -1;
+    mask-image: linear-gradient(to bottom, #000 30%, transparent);
+  }
+  .ex .hero-in { display: grid; grid-template-columns: 120px 1fr; gap: 16px; align-items: end; }
+  @media (min-width: 720px) { .ex .hero-in { grid-template-columns: 200px 1fr; gap: 28px; } }
+  .ex .h-poster { box-shadow: 0 20px 50px rgb(0 0 0 / 0.6), 0 0 60px rgb(var(--tint) / 0.5); }
+  .ex .eyebrow { margin: 0; color: var(--accent); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; }
+  .ex .h-text h1 { font-size: clamp(26px, 6vw, 52px); line-height: 1.02; }
+  .ex .meta { margin: 6px 0 8px; font-size: 13px; color: var(--muted); }
+  .ex .h-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .ex .score {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 3px; border-radius: 6px;
+    background: rgb(1 180 228 / 0.12); border: 1px solid rgb(1 180 228 / 0.45); font-weight: 700; font-size: 14px;
+  }
+  .ex .score b { background: linear-gradient(90deg, #90cea1, #01b4e4); color: #0d253f; padding: 1px 5px; border-radius: 4px; font: 900 12px/1.3 Arial, sans-serif; }
+  .ex .score small { color: var(--muted); font-weight: 500; font-size: 11px; }
+  .ex .ov { font-size: 14px; margin: 10px 0 0; max-width: 60ch; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  @media (max-width: 719px) { .ex .ov { grid-column: 1 / -1; } }
+  .ex .tip { font-size: 12.5px; margin: 0 auto 14px; }
+  .ex .tip b { color: var(--text); }
+
+  /* ---------- rows (as in B) ---------- */
+  .ex .rows { display: grid; gap: 22px; }
+  .ex .row { min-width: 0; }
+  .ex .row-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .ex .row-head h2 { font-size: 18px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ex .row-count { font-size: 12px; flex: none; }
+  .ex .ai-row h2 { color: var(--accent); }
+  .ex .row-head h2 small { font: 500 12px var(--font-body, inherit); margin-left: 6px; }
+  .ex .ai-row .c-why { -webkit-line-clamp: 3; }
+  .ex .row-empty { font-size: 13px; margin: 0; }
+  .ex .track {
+    display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+    padding: 10px max(16px, calc((100vw - 1100px) / 2 + 16px)) 14px; scroll-padding-inline: 16px; perspective: 900px;
+  }
+  .ex .card {
+    flex: none; width: 128px; scroll-snap-align: start; display: grid; gap: 4px; align-content: start;
+    transition: scale 0.25s cubic-bezier(.2,.8,.2,1);
+    animation: ex-tilt-in linear both, ex-tilt-out linear both;
+    animation-timeline: view(inline), view(inline); animation-range: entry, exit;
+  }
+  @media (min-width: 720px) { .ex .card { width: 150px; } }
+  .ex .card[data-out] { display: none; }
+  .ex .card.pressing { scale: 0.94; }
+  .ex .art { position: relative; display: block; }
+  .ex .art .poster { box-shadow: 0 8px 20px rgb(0 0 0 / 0.4); }
+  .ex .rate {
+    position: absolute; left: 6px; top: 6px; padding: 2px 6px; border-radius: 6px;
+    background: rgb(0 0 0 / 0.75); color: #f5c518; font: 700 11px/1.3 var(--font-body);
+  }
+  .ex .c-title { font-size: 13px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ex .c-meta, .ex .c-why { font-size: 11.5px; color: var(--muted); }
+  .ex .c-why { color: var(--accent); }
+  .ex .c-prov { display: flex; gap: 4px; }
+  .ex .c-prov img { width: 18px; height: 18px; border-radius: 5px; }
+  @keyframes ex-tilt-in { from { transform: rotateY(32deg) scale(0.88); opacity: 0.35; } }
+  @keyframes ex-tilt-out { to { transform: rotateY(-32deg) scale(0.88); opacity: 0.35; } }
+
+  /* Holding a show must never start the phone's own long-press menu or text selection. */
+  .ex .card, .ex .card *, .ex .fan, .ex .fan * { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+  html.holding, html.holding * { user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none !important; }
+
+  /* ---------- peek fan ---------- */
+  .ex .fan { position: fixed; inset: 0; z-index: 80; background: rgb(5 6 10 / 0.82); touch-action: none; }
+  .ex .fan[hidden] { display: none; }
+  .ex .fan img { pointer-events: none; }
+  .ex .fan-lift { position: fixed; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 20px 50px rgb(0 0 0 / 0.7); }
+  .ex .fan-title { position: fixed; left: 16px; right: 16px; top: 18px; margin: 0; text-align: center; font-size: 14px; }
+  .ex .fan-title b { color: var(--accent); }
+  .ex .fan-card { position: fixed; left: 0; top: 0; width: 78px; display: grid; gap: 4px; text-align: center; font-size: 11px; line-height: 1.2; }
+  .ex .fan-card .pic { position: relative; display: block; }
+  .ex .fan-card .poster, .ex .fan-card .poster-ph { box-shadow: 0 10px 26px rgb(0 0 0 / 0.6); transition: scale 0.15s, box-shadow 0.15s; }
+  .ex .fan-card .rate { left: 4px; top: 4px; font-size: 10px; padding: 1px 4px; }
+  .ex .fan-card .name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ex .fan-card.hot .poster, .ex .fan-card.hot .poster-ph { scale: 1.18; box-shadow: 0 0 0 2px var(--accent), 0 14px 34px rgb(0 0 0 / 0.7); }
+  .ex .fan-card.hot .name { color: var(--accent); }
+
+  /* ---------- path map: few nodes, no blur, no shadows, so it stays smooth on phones ---------- */
+  .ex .map-btn {
+    position: fixed; right: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px); z-index: 70;
+    padding: 10px 16px; border-radius: 999px; border: 1px solid rgb(255 211 107 / 0.5); cursor: pointer;
+    background: #17140a; color: var(--accent); font-weight: 700; box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  }
+  .ex .map-btn[hidden] { display: none; }
+  .ex .map {
+    position: fixed; inset: 0; z-index: 85; overflow: hidden; touch-action: none; cursor: grab; color: #eef0f6;
+    background: radial-gradient(circle at 50% 40%, #1a1d2b, #06070b 75%);
+  }
+  .ex .map[hidden] { display: none; }
+  .ex .map-world { position: absolute; left: 50%; top: 50%; transform-origin: 0 0; will-change: transform; }
+  .ex .map-lines { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
+  .ex .map-lines .way { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+  .ex .map-lines line { stroke: rgb(255 255 255 / 0.2); stroke-width: 1; }
+  .ex .mnode { position: absolute; left: 0; top: 0; padding: 0; border: 0; background: none; cursor: pointer; color: inherit; }
+  .ex .mnode img, .ex .mnode .ph { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; background: #222; }
+  .ex .mnode.step { width: 58px; }
+  .ex .mnode.step img { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ex .mnode.step.here { width: 76px; }
+  .ex .mnode.step.here img { outline-width: 3px; }
+  .ex .mnode.step span { position: absolute; left: 50%; top: calc(100% + 6px); translate: -50% 0; width: 110px; text-align: center; font: 600 11px/1.2 var(--font-body); }
+  .ex .mnode.step .n { position: absolute; left: -8px; top: -8px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #111; font: 800 11px/20px var(--font-body); text-align: center; }
+  .ex .mnode.alt { width: 36px; opacity: 0.6; }
+  .ex .map-head { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 10px; padding: 14px 16px; font-size: 13px; }
+  .ex .map-head b { font: 700 18px var(--font-display); }
+  .ex .map-head button { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgb(255 255 255 / 0.2); background: rgb(255 255 255 / 0.08); cursor: pointer; color: inherit; }
+  .ex .map-tip { position: absolute; left: 16px; right: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 56px); margin: 0; text-align: center; font-size: 12px; pointer-events: none; }
+
+  @media (prefers-reduced-motion: reduce) { .ex .card { animation: none; } }
+</style>
+
+<script>
+  import { initExplore } from "../../lib/client/explore";
+  initExplore();
+</script>

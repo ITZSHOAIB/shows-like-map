@@ -1,0 +1,22 @@
+---
+// PROTOTYPE route: /prototype/<variant>/<slug>. Same show, structurally different explorers.
+import Shell from "../../../components/prototype/Shell.astro";
+import Orbit from "../../../components/prototype/Orbit.astro";
+import Rows from "../../../components/prototype/Rows.astro";
+import Deck from "../../../components/prototype/Deck.astro";
+import Explore from "../../../components/prototype/Explore.astro";
+import { shows, type Show } from "../../../lib/data";
+import { VARIANTS } from "../../../lib/prototype";
+
+export function getStaticPaths() {
+  return VARIANTS.flatMap((v) => shows.map((show) => ({ params: { variant: v.key, slug: show.slug }, props: { show } })));
+}
+const { show } = Astro.props as { show: Show };
+const { variant } = Astro.params;
+---
+<Shell title={`Shows like ${show.name}${show.year ? ` (${show.year})` : ""}`} show={show} variant={variant}>
+  {variant === "orbit" && <Orbit show={show} />}
+  {variant === "rows" && <Rows show={show} />}
+  {variant === "deck" && <Deck show={show} />}
+  {variant === "explore" && <Explore show={show} />}
+</Shell>

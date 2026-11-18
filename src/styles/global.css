@@ -1,0 +1,87 @@
+/* Cross-page view transitions: a hop morphs the tapped poster into the next page's hero. */
+@view-transition { navigation: auto; }
+
+:root {
+  --tint: 70 80 110;             /* r g b, replaced per page from the poster */
+  --bg: #07080c;
+  --surface: rgb(255 255 255 / 0.06);
+  --surface-2: rgb(255 255 255 / 0.1);
+  --line: rgb(255 255 255 / 0.12);
+  --text: #eef0f6;
+  --muted: #9aa0b2;
+  --accent: #ffd36b;
+  --ended: #5fd49a;
+  --cancelled: #ff9b6b;
+  --ongoing: #7ab8ff;
+  --radius: 14px;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f5f3ef; --surface: rgb(0 0 0 / 0.05); --surface-2: rgb(0 0 0 / 0.09);
+    --line: rgb(0 0 0 / 0.12); --text: #14161d; --muted: #5d6273; --accent: #b0790a;
+    --ended: #17834f; --cancelled: #b8501f; --ongoing: #2864b8;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f5f3ef; --surface: rgb(0 0 0 / 0.05); --surface-2: rgb(0 0 0 / 0.09);
+  --line: rgb(0 0 0 / 0.12); --text: #14161d; --muted: #5d6273; --accent: #b0790a;
+  --ended: #17834f; --cancelled: #b8501f; --ongoing: #2864b8;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; overflow-x: clip; }
+body {
+  min-height: 100dvh;
+  padding-bottom: 72px; /* room for the prototype switcher */
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgb(var(--tint) / 0.55), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font: 15px/1.45 var(--font-body);
+  transition: background-color 0.6s;
+  -webkit-tap-highlight-color: transparent;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; }
+img { display: block; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; letter-spacing: -0.01em; }
+
+.wrap { width: min(100%, 1100px); margin: 0 auto; padding: 0 16px; }
+.muted { color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.poster { aspect-ratio: 2 / 3; object-fit: cover; background: var(--surface-2); border-radius: 10px; width: 100%; }
+.poster-ph {
+  aspect-ratio: 2 / 3; border-radius: 10px; background: var(--surface-2); display: grid; place-items: center;
+  padding: 8px; text-align: center; font: 600 12px/1.2 var(--font-display); color: var(--muted);
+}
+
+.badge { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.badge.ended { color: var(--ended); }
+.badge.cancelled { color: var(--cancelled); }
+.badge.ongoing { color: var(--ongoing); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--line); font-size: 12px; white-space: nowrap;
+}
+.chip.k { border-color: rgb(255 211 107 / 0.45); }
+.chip.c { border-color: rgb(122 184 255 / 0.5); }
+.chip.p { border-color: rgb(95 212 154 / 0.45); }
+
+.providers { display: flex; gap: 6px; align-items: center; }
+.providers img { width: 22px; height: 22px; border-radius: 6px; }
+
+/* Filtered-out hop targets: each variant decides how "out" looks, this is the fallback. */
+[data-out] { opacity: 0.18; filter: grayscale(1); }
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

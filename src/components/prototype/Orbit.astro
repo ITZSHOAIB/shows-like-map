@@ -1,0 +1,256 @@
+---
+// PROTOTYPE variant A, "Orbit": the show sits at the centre, matches orbit it in rings
+// (closer ring = more similar). Drag to spin, tap to focus, tap again to hop.
+import { matches, poster, reasonText, lengthLabel, filterAttrs, STATUS_LABEL, type Show } from "../../lib/data";
+
+interface Props { show: Show }
+const { show } = Astro.props;
+const ms = matches(show);
+const RINGS = [8, 18, 34];
+let start = 0;
+const ringOf = RINGS.map((n) => { const r = ms.slice(start, start + n); start += n; return r; });
+---
+<section class="orbit-page wrap">
+  <div class="o-head">
+    <p class="muted">Shows like</p>
+    <h1>{show.name}</h1>
+    <p class="meta">
+      {show.year} · <span class={`badge ${show.status}`}>{STATUS_LABEL[show.status]}</span>
+      {lengthLabel(show) && <> · {lengthLabel(show)}</>}
+    </p>
+  </div>
+
+  <div class="stage" id="stage">
+    <svg class="threads" id="threads" aria-hidden="true"></svg>
+    <div class="core">
+      {show.poster
+        ? <img src={poster(show.poster, "w342")} alt={`${show.name} poster`} class="poster" data-hero-poster style="view-transition-name: hero-poster" />
+        : <div class="poster-ph" data-hero-poster style="view-transition-name: hero-poster">{show.name}</div>}
+    </div>
+    {ringOf.map((ring, k) => ring.map((m, i) => (
+      <a
+        class={`sat r${k}`}
+        href={`/prototype/orbit/${m.show.slug}`}
+        data-hop={m.show.id}
+        data-ring={k}
+        data-i={i}
+        data-n={ring.length}
+        data-name={m.show.name}
+        data-year={m.show.year ?? ""}
+        data-badge={m.show.status}
+        data-len={lengthLabel(m.show)}
+        data-overview={m.show.overview.slice(0, 220)}
+        data-reasons={JSON.stringify(m.reasons.map((r) => [r[0], reasonText(r)]))}
+        data-logos={JSON.stringify(m.show.providers.map((p) => [p.name, p.logo]))}
+        data-poster342={m.show.poster ?? ""}
+        {...filterAttrs(m.show)}
+        aria-label={`${m.show.name}, ${m.reasons.map(reasonText).join(", ")}`}
+      >
+        {m.show.poster ? <img src={poster(m.show.poster, k ? "w92" : "w185")} alt="" class="poster" loading="lazy" /> : <div class="poster-ph">{m.show.name}</div>}
+      </a>
+    )))}
+  </div>
+  <p class="hint muted" id="o-hint">Drag to spin · tap a show to see why it matched</p>
+
+  <aside class="focus" id="focus" hidden>
+    <img class="poster" id="f-poster" alt="" />
+    <div>
+      <h2 id="f-title"></h2>
+      <p class="meta"><span id="f-year"></span> · <span id="f-badge" class="badge"></span> <span id="f-len"></span></p>
+      <div class="why" id="f-why"></div>
+      <div class="providers" id="f-providers"></div>
+      <p class="ov muted" id="f-overview"></p>
+      <a class="hop-btn" id="f-hop" href="#">Hop to this show →</a>
+    </div>
+  </aside>
+
+  <details class="as-list">
+    <summary>View all {ms.length} as a list</summary>
+    <ol>
+      {ms.map((m) => (
+        <li><a href={`/prototype/orbit/${m.show.slug}`} data-hop={m.show.id} {...filterAttrs(m.show)}>
+          {m.show.name} <span class="muted">({m.show.year}) · {m.reasons.map(reasonText).join(" · ")}</span>
+        </a></li>
+      ))}
+    </ol>
+  </details>
+</section>
+
+<style>
+  .orbit-page { display: grid; gap: 14px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) {
+    .orbit-page { grid-template-columns: minmax(0, 620px) 1fr; align-items: start; column-gap: 32px; }
+    .o-head, .as-list { grid-column: 1 / -1; }
+    .focus { position: sticky; top: 20px; grid-row: 2 / span 2; grid-column: 2; }
+    .hint { grid-column: 1; }
+  }
+  .o-head p { margin: 0; }
+  .o-head h1 { font-size: clamp(28px, 7vw, 46px); line-height: 1.05; }
+  .meta { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+
+  .stage {
+    --size: min(calc(100vw - 32px), 620px);
+    position: relative; width: var(--size); height: var(--size); margin: 0 auto;
+    touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+  }
+  .stage::before, .stage::after {
+    content: ""; position: absolute; border-radius: 50%; border: 1px dashed var(--line); pointer-events: none;
+  }
+  .stage::before { inset: 25%; }
+  .stage::after { inset: 15%; }
+  .stage.dragging { cursor: grabbing; }
+  .threads { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .core {
+    position: absolute; left: 50%; top: 50%; width: 27%; translate: -50% -50%; z-index: 3;
+    filter: drop-shadow(0 18px 40px rgb(var(--tint) / 0.7)) drop-shadow(0 4px 12px rgb(0 0 0 / 0.6));
+  }
+  .core .poster, .core .poster-ph { border-radius: 12px; }
+  .sat {
+    position: absolute; left: 0; top: 0; z-index: 2; will-change: transform;
+    transition: opacity 0.4s, filter 0.4s, scale 0.4s;
+  }
+  .sat .poster, .sat .poster-ph { border-radius: 6px; box-shadow: 0 6px 16px rgb(0 0 0 / 0.45); pointer-events: none; }
+  .sat .poster-ph { font-size: 7px; }
+  .sat.r0 { width: 14%; }
+  .sat.r1 { width: 9%; }
+  .sat.r2 { width: 6.5%; }
+  .sat[data-out] { opacity: 0.12; scale: 0.75; filter: grayscale(1); }
+  .sat.focused { z-index: 4; scale: 1.35; }
+  .sat.focused .poster { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hint { text-align: center; font-size: 12px; margin: 0; pointer-events: none; }
+
+  .focus {
+    display: grid; grid-template-columns: 96px 1fr; gap: 14px; padding: 14px; border-radius: var(--radius);
+    background: var(--surface); border: 1px solid var(--line); backdrop-filter: blur(10px);
+  }
+  .focus[hidden] { display: none; }
+  .focus h2 { font-size: 20px; }
+  .why { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .ov { font-size: 13px; margin: 8px 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .hop-btn {
+    display: inline-block; margin-top: 4px; padding: 9px 16px; border-radius: 999px; background: var(--accent); color: #111; font-weight: 700;
+  }
+  .as-list summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .as-list ol { padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
+</style>
+
+<script>
+  import gsap from "gsap";
+  import { escapeHtml } from "../../lib/client/shell";
+
+  const stage = document.getElementById("stage")!;
+  const sats = [...stage.querySelectorAll<HTMLAnchorElement>(".sat")];
+  const svg = document.getElementById("threads") as unknown as SVGSVGElement;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const RADIUS = [0.25, 0.35, 0.435];      // ring radius as a share of the stage size
+  const SPEED = [1, 0.72, 0.5];            // inner rings turn faster: parallax depth
+  const IMG = "https://image.tmdb.org/t/p/";
+
+  let rot = 0;                             // shared rotation (radians), scaled per ring
+  let vel = 0;                             // radians per frame
+  let focused: HTMLAnchorElement | null = null;
+  const drift = sats.map(() => 1);         // radius multiplier, eases out for filtered-out shows
+  const intro = { t: reduce ? 1 : 0 };
+
+  function layout() {
+    const size = stage.clientWidth, c = size / 2;
+    let lines = "";
+    sats.forEach((el, j) => {
+      const k = Number(el.dataset.ring), i = Number(el.dataset.i), n = Number(el.dataset.n);
+      const target = el.hasAttribute("data-out") ? 1.1 : 1;
+      drift[j] += (target - drift[j]) * 0.08;
+      const a = (i / n) * Math.PI * 2 + k * 0.4 + rot * SPEED[k] - Math.PI / 2;
+      const r = RADIUS[k] * size * drift[j] * intro.t;
+      const x = c + r * Math.cos(a), y = c + r * Math.sin(a);
+      const w = el.offsetWidth, h = el.offsetHeight;
+      el.style.transform = `translate(${x - w / 2}px, ${y - h / 2}px)`;
+      if ((k === 0 || el === focused) && !el.hasAttribute("data-out")) {
+        const hot = el === focused;
+        lines += `<line x1="${c}" y1="${c}" x2="${x}" y2="${y}" stroke="${hot ? "var(--accent)" : "rgb(255 255 255 / 0.22)"}" stroke-width="${hot ? 2 : 1}" ${hot ? "" : 'stroke-dasharray="3 5"'} />`;
+      }
+    });
+    svg.innerHTML = lines;
+  }
+
+  // Idle drift + inertia, all on one ticker.
+  let dragging = false;
+  gsap.ticker.add(() => {
+    if (!dragging) {
+      vel *= 0.94;
+      if (Math.abs(vel) < 0.0004 && !reduce && !focused) vel = 0.0004;
+      rot += vel;
+    }
+    layout();
+  });
+
+  // Drag to spin: angle of the pointer around the centre.
+  let lastAngle = 0, moved = 0, downOn: HTMLAnchorElement | null = null;
+  const angleOf = (e: PointerEvent) => {
+    const r = stage.getBoundingClientRect();
+    return Math.atan2(e.clientY - r.top - r.height / 2, e.clientX - r.left - r.width / 2);
+  };
+  stage.addEventListener("pointerdown", (e) => {
+    dragging = true; moved = 0; vel = 0; lastAngle = angleOf(e);
+    downOn = (e.target as Element).closest(".sat");
+    stage.setPointerCapture(e.pointerId);
+    stage.classList.add("dragging");
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    let d = angleOf(e) - lastAngle;
+    if (d > Math.PI) d -= 2 * Math.PI;
+    if (d < -Math.PI) d += 2 * Math.PI;
+    rot += d; vel = d; moved += Math.abs(d); lastAngle = angleOf(e);
+  });
+  stage.addEventListener("pointerup", () => {
+    dragging = false;
+    stage.classList.remove("dragging");
+    if (moved < 0.03 && downOn) tap(downOn);
+    downOn = null;
+  });
+  // Links are real links (keyboard, no-JS); pointer taps are handled above.
+  sats.forEach((el) => el.addEventListener("click", (e) => { if (e.detail !== 0) e.preventDefault(); }));
+
+  function tap(el: HTMLAnchorElement) {
+    if (focused === el) { go(el); return; }
+    focused?.classList.remove("focused");
+    focused = el;
+    el.classList.add("focused");
+    vel = 0;
+    showFocus(el);
+  }
+  function go(el: HTMLAnchorElement) {
+    const img = el.querySelector<HTMLElement>("img, .poster-ph");
+    document.querySelector<HTMLElement>("[data-hero-poster]")!.style.viewTransitionName = "none";
+    if (img) img.style.viewTransitionName = "hero-poster";
+    location.href = el.href;
+  }
+
+  const focusBox = document.getElementById("focus")!;
+  function showFocus(el: HTMLAnchorElement) {
+    const d = el.dataset;
+    focusBox.hidden = false;
+    (document.getElementById("f-poster") as HTMLImageElement).src = d.poster342 ? `${IMG}w185${d.poster342}` : "";
+    document.getElementById("f-title")!.textContent = d.name ?? "";
+    document.getElementById("f-year")!.textContent = d.year ?? "";
+    const badge = document.getElementById("f-badge")!;
+    badge.className = `badge ${d.badge}`;
+    badge.textContent = { ended: "✓ Ended", cancelled: "⚠ Cancelled", ongoing: "● Ongoing" }[d.badge as string] ?? "";
+    document.getElementById("f-len")!.textContent = d.len ? `· ${d.len}` : "";
+    document.getElementById("f-why")!.innerHTML = (JSON.parse(d.reasons ?? "[]") as [string, string][])
+      .map(([t, label]) => `<span class="chip ${t}">${escapeHtml(label)}</span>`).join("");
+    const logos = JSON.parse(d.logos ?? "[]") as [string, string][];
+    document.getElementById("f-providers")!.innerHTML = logos.length
+      ? logos.map(([n, l]) => `<img src="${IMG}w92${l}" alt="${escapeHtml(n)}" title="${escapeHtml(n)}">`).join("")
+      : `<span class="muted" style="font-size:12px">Not streaming in India</span>`;
+    document.getElementById("f-overview")!.textContent = d.overview ?? "";
+    const hop = document.getElementById("f-hop") as HTMLAnchorElement;
+    hop.href = el.href;
+    hop.onclick = (e) => { e.preventDefault(); go(el); };
+    document.getElementById("o-hint")!.textContent = "Tap it again (or the button) to hop there";
+    if (innerWidth < 900) focusBox.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
+  }
+
+  // Big-bang intro: the rings unfold from the centre once the hero has landed.
+  if (!reduce) gsap.to(intro, { t: 1, duration: 1.1, delay: 0.25, ease: "expo.out" });
+</script>

@@ -1,0 +1,187 @@
+---
+// PROTOTYPE variant C, "Deck": one match at a time, big. Swipe right to hop there,
+// left for the next match, up for details. Buttons do the same for non-swipers.
+import { matches, poster, reasonText, lengthLabel, filterAttrs, STATUS_LABEL, IMG, type Show } from "../../lib/data";
+
+interface Props { show: Show }
+const { show } = Astro.props;
+const ms = matches(show);
+---
+<section class="deck-page wrap">
+  <div class="d-head">
+    {show.poster
+      ? <img src={poster(show.poster, "w185")} alt="" class="poster d-seed" data-hero-poster style="view-transition-name: hero-poster" />
+      : <div class="poster-ph d-seed" data-hero-poster style="view-transition-name: hero-poster">{show.name}</div>}
+    <div>
+      <p class="muted">Shows like</p>
+      <h1>{show.name}</h1>
+      <p class="muted small">{show.year} · <span class={`badge ${show.status}`}>{STATUS_LABEL[show.status]}</span> {lengthLabel(show) && <>· {lengthLabel(show)}</>}</p>
+    </div>
+    <span class="progress muted" id="progress"></span>
+  </div>
+
+  <div class="deck" id="deck">
+    {ms.map((m, i) => (
+      <article class="card" data-card={i} {...filterAttrs(m.show)} data-hop={m.show.id} data-href={`/prototype/deck/${m.show.slug}`}>
+        {m.show.poster ? <img src={poster(m.show.poster, "w500")} alt="" class="art" loading={i < 3 ? "eager" : "lazy"} draggable="false" /> : <div class="art poster-ph">{m.show.name}</div>}
+        <div class="shade"></div>
+        <div class="info">
+          <div class="why">{m.reasons.map((r) => <span class={`chip ${r[0]}`}>{reasonText(r)}</span>)}</div>
+          <h2>{m.show.name}</h2>
+          <p class="small">
+            {m.show.year} · <span class={`badge ${m.show.status}`}>{STATUS_LABEL[m.show.status]}</span>
+            {lengthLabel(m.show) && <> · {lengthLabel(m.show)}</>}
+          </p>
+          <div class="providers">
+            {m.show.providers.length
+              ? m.show.providers.map((p) => <img src={`${IMG}w92${p.logo}`} alt={p.name} title={p.name} />)
+              : <span class="small muted">Not streaming in India</span>}
+          </div>
+          <p class="ov">{m.show.overview || "No overview yet."}</p>
+        </div>
+        <span class="stamp hop">HOP</span>
+        <span class="stamp skip">NEXT</span>
+      </article>
+    ))}
+    <div class="empty" id="empty" hidden>
+      <p>That's every match{" "}<span id="empty-why"></span>.</p>
+      <button class="ghost" id="restart">Start over</button>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="b-skip" aria-label="Next match">✕</button>
+    <button id="b-info" aria-label="Show details">ⓘ</button>
+    <button id="b-hop" class="primary" aria-label="Hop to this show">➜</button>
+  </div>
+  <p class="muted small center">Swipe → to hop there · ← for the next match · ↑ for details</p>
+</section>
+
+<style>
+  .deck-page { display: grid; gap: 12px; max-width: 520px; padding-bottom: 20px; }
+  .d-head { display: grid; grid-template-columns: 48px 1fr auto; gap: 12px; align-items: center; }
+  .d-head p { margin: 0; }
+  .d-head h1 { font-size: 22px; line-height: 1.1; }
+  .d-seed { border-radius: 6px; }
+  .small { font-size: 12.5px; }
+  .center { text-align: center; margin: 0; }
+  .progress { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  .deck { position: relative; height: clamp(340px, calc(100dvh - 380px), 640px); }
+  .card {
+    position: absolute; inset: 0; border-radius: 22px; overflow: hidden; background: #111;
+    box-shadow: 0 24px 60px rgb(0 0 0 / 0.55); touch-action: none; user-select: none; -webkit-user-select: none;
+    visibility: hidden; will-change: transform; cursor: grab;
+  }
+  .card.live { visibility: visible; }
+  .art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; aspect-ratio: auto; border-radius: 0; font-size: 22px; pointer-events: none; }
+  .shade { position: absolute; inset: 0; background: linear-gradient(to top, rgb(0 0 0 / 0.92) 8%, rgb(0 0 0 / 0.35) 45%, transparent 70%); transition: background 0.3s; }
+  .info { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px; color: #fff; display: grid; gap: 6px; transition: translate 0.35s cubic-bezier(.2,.8,.2,1); }
+  .info h2 { font-size: 28px; line-height: 1.05; }
+  .info p { margin: 0; }
+  .why { display: flex; flex-wrap: wrap; gap: 6px; }
+  .why .chip { background: rgb(0 0 0 / 0.45); backdrop-filter: blur(6px); color: #fff; }
+  .ov { font-size: 14px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 0.4s, opacity 0.3s; }
+  .card.details .ov { max-height: 40vh; opacity: 1; overflow-y: auto; }
+  .card.details .shade { background: linear-gradient(to top, rgb(0 0 0 / 0.95) 55%, rgb(0 0 0 / 0.4)); }
+  .stamp {
+    position: absolute; top: 26px; padding: 4px 12px; border: 3px solid; border-radius: 10px;
+    font: 800 28px var(--font-display); letter-spacing: 0.08em; opacity: 0; pointer-events: none;
+  }
+  .stamp.hop { left: 22px; color: var(--accent); rotate: -14deg; }
+  .stamp.skip { right: 22px; color: #fff; rotate: 14deg; }
+
+  .actions { display: flex; justify-content: center; gap: 18px; }
+  .actions button {
+    width: 54px; height: 54px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+    font-size: 20px; cursor: pointer; transition: scale 0.15s;
+  }
+  .actions button:active { scale: 0.9; }
+  .actions .primary { background: var(--accent); color: #111; border-color: var(--accent); width: 64px; height: 64px; font-size: 24px; }
+  .empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 10px; }
+  .empty[hidden] { display: none; }
+  .ghost { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+</style>
+
+<script>
+  import gsap from "gsap";
+  import { Draggable } from "gsap/Draggable";
+  gsap.registerPlugin(Draggable);
+
+  const cards = [...document.querySelectorAll<HTMLElement>("[data-card]")];
+  const progress = document.getElementById("progress")!;
+  const empty = document.getElementById("empty")!;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let pos = 0;                     // index into `queue`
+  let queue: HTMLElement[] = [];   // cards that pass the filters, in match order
+  let drag: Draggable | null = null;
+
+  function rebuild(keepCurrent = true) {
+    const current = queue[pos];
+    queue = cards.filter((c) => !c.hasAttribute("data-out"));
+    pos = keepCurrent && current ? Math.max(0, queue.indexOf(current)) : 0;
+    render();
+  }
+
+  function render() {
+    drag?.kill();
+    cards.forEach((c) => { c.classList.remove("live", "details"); gsap.set(c, { clearProps: "transform,zIndex" }); });
+    const top = queue[pos];
+    empty.hidden = !!top;
+    (document.getElementById("empty-why") as HTMLElement).textContent = queue.length < cards.length ? "that fits your filters" : "";
+    progress.textContent = top ? `${pos + 1} / ${queue.length}` : "";
+    // The next two cards peek out from behind, smaller and lower.
+    queue.slice(pos, pos + 3).forEach((c, depth) => {
+      c.classList.add("live");
+      gsap.set(c, { zIndex: 10 - depth, scale: 1 - depth * 0.05, y: depth * 16, rotation: 0, x: 0 });
+    });
+    if (top) attach(top);
+  }
+
+  function attach(card: HTMLElement) {
+    const hop = card.querySelector<HTMLElement>(".stamp.hop")!, skip = card.querySelector<HTMLElement>(".stamp.skip")!;
+    [drag] = Draggable.create(card, {
+      type: "x,y",
+      onDrag() {
+        gsap.set(card, { rotation: this.x / 18 });
+        gsap.set(hop, { opacity: Math.max(0, this.x / 110) });
+        gsap.set(skip, { opacity: Math.max(0, -this.x / 110) });
+      },
+      onRelease() {
+        if (this.x > 110) leave(card, "hop");
+        else if (this.x < -110) leave(card, "skip");
+        else if (this.y < -80) { toggleDetails(card); spring(card); }
+        else spring(card);
+      },
+      onClick() { toggleDetails(card); },
+    });
+  }
+  function spring(card: HTMLElement) {
+    gsap.to(card, { x: 0, y: 0, rotation: 0, duration: 0.5, ease: "elastic.out(1, 0.6)" });
+    gsap.to(card.querySelectorAll(".stamp"), { opacity: 0, duration: 0.2 });
+  }
+  function toggleDetails(card: HTMLElement) { card.classList.toggle("details"); }
+
+  function leave(card: HTMLElement, how: "hop" | "skip") {
+    const dir = how === "hop" ? 1 : -1;
+    gsap.to(card, {
+      x: dir * innerWidth, rotation: dir * 24, duration: reduce ? 0 : 0.35, ease: "power2.in",
+      onComplete() {
+        if (how === "hop") {
+          // Morph this card's poster into the next page's hero.
+          document.querySelector<HTMLElement>("[data-hero-poster]")!.style.viewTransitionName = "none";
+          gsap.set(card, { x: 0, rotation: 0 });
+          card.querySelector<HTMLElement>(".art")!.style.viewTransitionName = "hero-poster";
+          location.href = card.dataset.href!;
+        } else { pos++; render(); }
+      },
+    });
+  }
+
+  document.getElementById("b-skip")!.addEventListener("click", () => queue[pos] && leave(queue[pos], "skip"));
+  document.getElementById("b-hop")!.addEventListener("click", () => queue[pos] && leave(queue[pos], "hop"));
+  document.getElementById("b-info")!.addEventListener("click", () => queue[pos] && toggleDetails(queue[pos]));
+  document.getElementById("restart")!.addEventListener("click", () => { pos = 0; render(); });
+  document.addEventListener("filters:change", () => rebuild());
+  rebuild(false);
+</script>
