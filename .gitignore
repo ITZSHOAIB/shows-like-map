@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.astro/
+.env
+
+# Fetched and generated data stays out of git; the published dataset ships as a release asset instead.
+data/
+src/data/generated/
