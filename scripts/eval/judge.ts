@@ -1,22 +1,22 @@
-// Blind judge for match lists. Codex (a different model family from the Claude that wrote the lists) rates every
+// Blind judge for match lists. Gemini (a different model family from the Claude that wrote the lists) rates every
 // candidate from every run, merged and shuffled with no source labels, so no list is graded by its own author.
+// Needs GEMINI_API_KEY; JUDGE_MODEL overrides the model. Ratings from an earlier judge are kept in their own file.
 // Each run is scored on what the site would show: the validated top 10, with empty slots counted as 0.
-// Ratings are cached per seed and TVmaze id in data/eval/ratings.json, so only new candidates go to Codex.
+// Ratings are cached per seed and TVmaze id in data/eval/ratings-<model>.json, so only new candidates go to the judge.
 // Usage: node scripts/eval/judge.ts <run dir> [<run dir> ...]   (run dirs are generate.ts --out folders)
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { basename } from "node:path";
-import { loadCatalogue } from "../../src/lib/catalogue.ts";
 import type { List } from "../matches/generate.ts";
 import { validate, type Resolved } from "../matches/resolve.ts";
+import { evalShows } from "./shows.ts";
 
 const runs = process.argv.slice(2);
-const FILE = "data/eval/ratings.json";
+const MODEL = process.env.JUDGE_MODEL ?? "gemini-3.5-flash";
+const FILE = `data/eval/ratings-${MODEL}.json`;
 const ratings: Record<number, Record<number, number>> = existsSync(FILE) ? JSON.parse(readFileSync(FILE, "utf8")) : {};
-const catalogue = new Map(loadCatalogue().map((s) => [s.id, s]));
 const listIds = (dir: string) => readdirSync(dir).filter((f) => /^\d+\.json$/.test(f)).map((f) => Number(f.slice(0, -5)));
-const seeds = listIds(runs[0]).filter((id) => runs.every((r) => existsSync(`${r}/${id}.json`)) && catalogue.has(id));
+const seeds = listIds(runs[0]).filter((id) => runs.every((r) => existsSync(`${r}/${id}.json`)));
+const catalogue = new Map((await evalShows(seeds)).map((s) => [s.id, s]));
 
 // What each run would show per seed, plus how many of its 15 picks checked out on TVmaze.
 const lists: Record<string, Record<number, { list: List; shown: Resolved[]; valid: number }>> = {};
@@ -47,10 +47,29 @@ const RUBRIC = `You are judging TV recommendations. For each SEED show, rate eve
 1 = okay: some real overlap, a reasonable but weaker suggestion
 0 = poor: different audience or tone, or it only shares a surface trait (same actor, country, network, or it is a remake of the seed)
 
-Judge from your own knowledge. Do not run commands or browse. If you don't recognise a candidate, rate it 0.
+Judge from your own knowledge. If you don't recognise a candidate, rate it 0.
 Reply with only JSON, no prose, keyed by seed id and candidate number: {"<seed id>": {"c1": 2, "c2": 0, ...}, ...}`;
 
-// Only candidates without a cached rating go to Codex, five seeds per call.
+/** One Gemini call returning JSON. Free-tier quota and "high demand" errors are retried after a pause. */
+async function rate(prompt: string) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+  for (let t = 0; t < 6; t++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "x-goog-api-key": process.env.GEMINI_API_KEY!, "content-type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }),
+    });
+    if (res.ok) {
+      const text = ((await res.json()) as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? "";
+      return JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+    }
+    if (res.status !== 429 && res.status !== 503) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 500)}`);
+    await new Promise((r) => setTimeout(r, 20_000 * 2 ** t));
+  }
+  throw new Error("Gemini kept refusing; try again later");
+}
+
+// Only candidates without a cached rating go to the judge, five seeds per call.
 const pending = seeds
   .map((id) => {
     const pool = new Map<number, Resolved>();
@@ -67,18 +86,10 @@ for (let b = 0; b < pending.length; b += 5) {
       return `SEED ${id}: ${s.name} (${[s.premiered?.slice(0, 4), s.platform].filter(Boolean).join(", ")})\n${pool.map((c, i) => `c${i + 1}. ${c.name}${c.year ? ` (${c.year})` : ""}`).join("\n")}`;
     })
     .join("\n\n");
-  const last = `${tmpdir()}/slm-judge-${process.pid}-${b}.txt`;
   console.log(`judging ${b / 5 + 1} / ${Math.ceil(pending.length / 5)}: ${batch.map((p) => catalogue.get(p.id)!.name).join(", ")}`);
-  const r = spawnSync("codex", ["exec", "--skip-git-repo-check", "--ephemeral", "-s", "read-only", "-o", last, "-"], {
-    input: `${RUBRIC}\n\n${body}`,
-    cwd: tmpdir(),
-    encoding: "utf8",
-    shell: true,
-    timeout: 15 * 60_000,
-  });
-  if (!existsSync(last)) throw new Error(`codex failed: ${r.stderr?.slice(-2000)}`);
-  const text = readFileSync(last, "utf8");
-  const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  const json = await rate(`${RUBRIC}
+
+${body}`);
   for (const { id, pool } of batch) pool.forEach((c, i) => {
     const rating = json[id]?.[`c${i + 1}`];
     if (rating === 0 || rating === 1 || rating === 2) (ratings[id] ??= {})[c.id] = rating;
