@@ -1,0 +1,62 @@
+---
+// Bare show page (catalogue tracer): the commitment facts and the TVmaze credit. The Drill down design comes in #3.
+import { hours, loadCatalogue, STATUS_LABEL, type Show } from "../../lib/catalogue";
+
+export function getStaticPaths() {
+  return loadCatalogue().map((show) => ({ params: { slug: show.slug }, props: { show } }));
+}
+
+const { show } = Astro.props as { show: Show };
+const year = show.premiered?.slice(0, 4);
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Shows like {show.name} | Shows Like Map</title>
+    {show.summary && <meta name="description" content={show.summary} />}
+  </head>
+  <body>
+    <main>
+      {show.poster && <img src={show.poster} alt={`${show.name} poster`} width="210" height="295" />}
+      <h1>{show.name}{year && <span> ({year})</span>}</h1>
+      <dl>
+        <dt>Status</dt>
+        <dd>{STATUS_LABEL[show.status]}</dd>
+        <dt>To finish</dt>
+        <dd>{hours(show.minutes)} · {show.episodes} episodes · {show.seasons} {show.seasons === 1 ? "season" : "seasons"}</dd>
+        {show.platform && <dt>On</dt>}
+        {show.platform && <dd>{show.platform}</dd>}
+      </dl>
+      {show.summary && <p>{show.summary}</p>}
+    </main>
+    <footer>
+      <p>Show data from <a href={show.tvmaze}>TVmaze</a> (CC BY-SA 4.0).</p>
+    </footer>
+  </body>
+</html>
+
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    max-width: 40rem;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
+  img {
+    border-radius: 0.5rem;
+  }
+  dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+  }
+  dt {
+    font-weight: 600;
+  }
+  dd {
+    margin: 0;
+  }
+</style>

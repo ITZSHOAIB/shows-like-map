@@ -10,7 +10,9 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "typecheck": "astro sync && tsc --noEmit"
+    "typecheck": "astro sync && tsc --noEmit",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "data": "node scripts/catalogue.ts"
   },
   "dependencies": {
     "astro": "7.4.0"
