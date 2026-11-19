@@ -22,18 +22,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-      # Fetched data is never committed, so CI fetches it. The cache is renewed weekly to spare TVmaze.
-      - id: week
-        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        with:
-          path: data
-          # Bump the version when the cached data grows (v3: Wikipedia articles): a cache key that already exists is never saved again.
-          key: data-v3-${{ steps.week.outputs.week }}
-      # Match lists come from the private Hugging Face dataset; without the secret the site builds without them.
-      # They go first: the catalogue adds the ring of shows the seed lists link to.
-      - run: pnpm matches:pull
+      # Generated data is never committed: the weekly data job (data.yml) builds the catalogue and both live in the
+      # private Hugging Face dataset, so checks build the site from them without refetching TVmaze.
+      - run: pnpm matches:pull && pnpm catalogue:pull
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      - run: pnpm data
       - run: pnpm build
