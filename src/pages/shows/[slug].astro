@@ -6,8 +6,8 @@ import { loadMatches, type Match } from "../../lib/matches";
 export function getStaticPaths() {
   const catalogue = loadCatalogue();
   const slugs = new Map(catalogue.map((s) => [s.id, s.slug]));
+  // A match links to its own page when it has one; matches outside the catalogue show unlinked (decision in #2).
   const matches = loadMatches();
-  // A match links to its own page when it has one; the one-ring slice of #2 gives every match a page.
   return catalogue.map((show) => ({
     params: { slug: show.slug },
     props: { show, matches: (matches.get(show.id) ?? []).map((m) => ({ ...m, slug: slugs.get(m.id) })) },

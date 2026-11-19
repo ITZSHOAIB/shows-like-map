@@ -1,10 +1,12 @@
 // Build the show catalogue from TVmaze into src/data/generated/catalogue.json.
 // Raw responses are cached in data/tvmaze (git-ignored); delete the folder to refetch everything.
-// Usage: pnpm data            seeds from TVmaze's full show index (about 400 pages) ranked by Wikidata sitelinks, then one call per show
+// Usage: pnpm data            seeds from TVmaze's full show index (about 400 pages) ranked by Wikidata sitelinks, plus the ring
+//                             their match lists link to (pull them first), then one call per show
 //        pnpm data 47014 ...  only these TVmaze ids
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { CATALOGUE, toShow, uniqueSlugs } from "../src/lib/catalogue.ts";
-import { selectSeeds } from "./seeds.ts";
+import { loadLists } from "../src/lib/matches.ts";
+import { ringIds, selectSeeds } from "./seeds.ts";
 import { tvmaze } from "./tvmaze.ts";
 import { detailsByTvmaze, sitelinksByTvmaze } from "./wikidata.ts";
 
@@ -58,7 +60,15 @@ mkdirSync(`${CACHE}/index`, { recursive: true });
 mkdirSync("src/data/generated", { recursive: true });
 
 const args = process.argv.slice(2).map(Number);
-const ids = args.length ? args : selectSeeds(await index(), await sitelinks());
+let ids = args;
+if (!args.length) {
+  // The seeds, plus the ring their match lists link to once `pnpm matches:pull` has fetched them.
+  const all = await index();
+  const seeds = selectSeeds(all, await sitelinks());
+  const ring = ringIds(seeds, loadLists(), all);
+  console.log(`${seeds.length} seeds + ${ring.length} ring shows`);
+  ids = [...seeds, ...ring];
+}
 
 const wd = await wikidata(ids);
 const shows = [];
