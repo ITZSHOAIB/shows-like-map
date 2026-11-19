@@ -9,7 +9,7 @@ Start from a series you loved and get the shows a fan of it would enjoy next. Ea
 ## Docs
 
 - [Product brief](docs/product.md)
-- [Plan: epics and research spikes](docs/plan.md)
+- [Plan: the five epics](docs/plan.md)
 - Decisions:
   1. [Static Astro site on GitHub Pages](docs/decisions/0001-static-site-on-github-pages.md)
   2. [Open data: TVmaze and Wikidata, not TMDB](docs/decisions/0002-open-data-tvmaze-wikidata.md)
