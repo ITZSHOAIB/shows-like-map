@@ -81,6 +81,7 @@ const todo = shows.filter((s) => !existsSync(`${OUT}/${s.id}.json`));
 mkdirSync(OUT, { recursive: true });
 console.log(`${todo.length} of ${shows.length} shows to generate, ${MODEL}, ${BATCH} per call, into ${OUT}`);
 
+let failures = 0;
 for (let i = 0; i < todo.length; i += BATCH) {
   const batch = todo.slice(i, i + BATCH);
   try {
@@ -93,7 +94,22 @@ for (let i = 0; i < todo.length; i += BATCH) {
     }
     appendFileSync(`${OUT}/_calls.jsonl`, JSON.stringify({ model: MODEL, shows: batch.length, ids: batch.map((s) => s.id), ...stats }) + "\n");
     console.log(`${Math.min(i + BATCH, todo.length)} / ${todo.length}  ${Math.round(stats.ms / 1000)} s`);
+    failures = 0;
   } catch (e) {
-    console.error(`batch ${batch.map((s) => s.name).join(", ")} failed: ${(e as Error).message.slice(0, 300)}`);
+    // execFileSync puts Claude's structured API error in stdout, not in Error.message.
+    const error = e as Error & { stdout?: string | Buffer };
+    let detail = error.message;
+    let quota = false;
+    try {
+      const response = JSON.parse(String(error.stdout));
+      detail = response.result ?? detail;
+      quota = response.api_error === "usage_limit_reached";
+    } catch { /* Non-JSON failures still report the command error. */ }
+    console.error(`batch ${batch.map((s) => s.name).join(", ")} failed: ${detail.slice(0, 500)}`);
+    if (quota || ++failures >= 3) {
+      console.error("Generation stopped. Saved lists are intact; rerun the same command to resume missing shows.");
+      process.exitCode = 1;
+      break;
+    }
   }
 }
