@@ -17,10 +17,23 @@ export interface Show {
   seasons: number;
   episodes: number;
   minutes: number | null; // total runtime of aired regular episodes, null when TVmaze has no runtimes: "hours to finish" is minutes / 60
+  creators: string[]; // TVmaze crew, else Wikidata
+  cast: string[]; // top billed, TVmaze
   poster: string | null; // TVmaze CDN, hotlinked
   summary: string | null; // plain text
   tvmaze: string; // show page on TVmaze, for credit
+  wikidata: string | null; // Q-id
+  wikipedia: string | null; // English article
 }
+
+/** What Wikidata adds to a show (CC0). */
+export interface Extra {
+  wikidata: string;
+  wikipedia: string | null;
+  creators: string[];
+}
+
+const CAST = 6;
 
 interface Episode {
   season: number;
@@ -59,9 +72,12 @@ export function slugify(name: string): string {
 
 const plain = (html: string | null) => html?.replace(/<[^>]+>/g, "").trim() || null;
 
-/** Turn a TVmaze show (fetched with `embed=episodes`) into a catalogue record. */
-export function toShow(raw: any, now = new Date()): Show {
+const unique = (names: string[]) => [...new Set(names)];
+
+/** Turn a TVmaze show (fetched with episodes, cast and crew embedded) and its Wikidata extras into a catalogue record. */
+export function toShow(raw: any, extra?: Extra, now = new Date()): Show {
   const eps = aired(raw._embedded?.episodes ?? [], now);
+  const creators = unique((raw._embedded?.crew ?? []).filter((c: any) => c.type === "Creator").map((c: any) => c.person.name));
   return {
     id: raw.id,
     slug: slugify(raw.name),
@@ -75,9 +91,13 @@ export function toShow(raw: any, now = new Date()): Show {
     seasons: new Set(eps.map((e) => e.season)).size,
     episodes: eps.length,
     minutes: minutesToFinish(eps, raw.averageRuntime ?? raw.runtime ?? null),
+    creators: creators.length ? creators : (extra?.creators ?? []),
+    cast: unique((raw._embedded?.cast ?? []).map((c: any) => c.person.name)).slice(0, CAST),
     poster: raw.image?.medium ?? null,
     summary: plain(raw.summary),
     tvmaze: raw.url,
+    wikidata: extra?.wikidata ?? null,
+    wikipedia: extra?.wikipedia ?? null,
   };
 }
 

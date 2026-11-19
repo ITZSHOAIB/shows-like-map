@@ -29,11 +29,21 @@ const year = show.premiered?.slice(0, 4);
         <dd>{hours(show.minutes)} · {show.episodes} episodes · {show.seasons} {show.seasons === 1 ? "season" : "seasons"}</dd>
         {show.platform && <dt>On</dt>}
         {show.platform && <dd>{show.platform}</dd>}
+        {show.language && <dt>Language</dt>}
+        {show.language && <dd>{show.language}</dd>}
+        {show.creators.length > 0 && <dt>Created by</dt>}
+        {show.creators.length > 0 && <dd>{show.creators.join(", ")}</dd>}
+        {show.cast.length > 0 && <dt>Starring</dt>}
+        {show.cast.length > 0 && <dd>{show.cast.join(", ")}</dd>}
       </dl>
       {show.summary && <p>{show.summary}</p>}
     </main>
     <footer>
-      <p>Show data from <a href={show.tvmaze}>TVmaze</a> (CC BY-SA 4.0).</p>
+      <p>
+        Show data from <a href={show.tvmaze}>TVmaze</a> (CC BY-SA 4.0) and
+        <a href={show.wikidata ? `https://www.wikidata.org/wiki/${show.wikidata}` : "https://www.wikidata.org/"}>Wikidata</a>.
+        {show.wikipedia && <a href={show.wikipedia}>Read more on Wikipedia</a>}
+      </p>
     </footer>
   </body>
 </html>

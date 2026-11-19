@@ -22,6 +22,7 @@ test("hours to finish count aired regular episodes, falling back to the average 
         episodes: [ep(1, 30), ep(1, null), ep(2, 50), ep(2, 60, null), ep(3, 45, "2026-06-01T00:00:00Z"), ep(2, 90, undefined, "significant_special")],
       },
     },
+    undefined,
     now,
   );
   assert.equal(s.minutes, 30 + 40 + 50);
@@ -31,7 +32,7 @@ test("hours to finish count aired regular episodes, falling back to the average 
 });
 
 test("hours to finish are unknown when TVmaze has no runtimes", () => {
-  const s = toShow({ id: 3, name: "Maharani", status: "Ended", url: "u", _embedded: { episodes: [ep(1, null), ep(1, null)] } }, now);
+  const s = toShow({ id: 3, name: "Maharani", status: "Ended", url: "u", _embedded: { episodes: [ep(1, null), ep(1, null)] } }, undefined, now);
   assert.equal(s.minutes, null);
 });
 
@@ -48,6 +49,28 @@ test("platform prefers the web channel, summary is plain text", () => {
   assert.equal(s.platform, "Prime Video");
   assert.equal(s.summary, "A village office.");
   assert.equal(s.status, "ended");
+});
+
+test("cast is the top billed, creators come from TVmaze crew, else Wikidata", () => {
+  const person = (name: string) => ({ person: { name } });
+  const raw = {
+    id: 4,
+    name: "Dark",
+    status: "Ended",
+    url: "u",
+    _embedded: {
+      episodes: [],
+      cast: ["Louis Hofmann", "Karoline Eichhorn", "Lisa Vicari", "Maja Schöne", "Oliver Masucci", "Jördis Triebel", "Andreas Pietschmann", "Louis Hofmann"].map(person),
+      crew: [{ type: "Creator", ...person("Baran bo Odar") }, { type: "Creator", ...person("Jantje Friese") }, { type: "Executive Producer", ...person("Someone") }],
+    },
+  };
+  const wd = { wikidata: "Q27877604", wikipedia: "https://en.wikipedia.org/wiki/Dark_(TV_series)", creators: ["From Wikidata"] };
+  const s = toShow(raw, wd);
+  assert.deepEqual(s.cast, ["Louis Hofmann", "Karoline Eichhorn", "Lisa Vicari", "Maja Schöne", "Oliver Masucci", "Jördis Triebel"]);
+  assert.deepEqual(s.creators, ["Baran bo Odar", "Jantje Friese"]);
+  assert.equal(s.wikipedia, wd.wikipedia);
+  assert.deepEqual(toShow({ ...raw, _embedded: { ...raw._embedded, crew: [] } }, wd).creators, ["From Wikidata"]);
+  assert.equal(toShow(raw).wikidata, null);
 });
 
 test("slugs are readable and unique", () => {
