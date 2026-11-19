@@ -39,6 +39,13 @@ People who watch series on streaming services, starting from a show they already
 - Movies.
 - Any revenue (ads, affiliate links).
 
+## Goal
+
+**Usage first:** people actually use it. Portfolio value and credibility follow from a site people use; they aren't goals on their own.
+
+- **Measure:** search visitors and click-throughs from Google Search Console. It needs no tracking on the site.
+- **Check after 3 months live:** if few people come from search, stop spending AI quota on growth and keep only the weekly refresh.
+
 ## Success looks like
 
 - A visitor from "shows like X" search finds a match they start watching.
