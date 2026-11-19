@@ -12,7 +12,9 @@
     "preview": "astro preview",
     "typecheck": "astro sync && tsc --noEmit",
     "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.ts\"",
-    "data": "node scripts/catalogue.ts"
+    "data": "node scripts/catalogue.ts",
+    "matches:push": "node scripts/matches/store.ts push",
+    "matches:pull": "node scripts/matches/store.ts pull"
   },
   "dependencies": {
     "astro": "7.4.0"

@@ -30,4 +30,8 @@ jobs:
           path: data
           key: data-${{ steps.week.outputs.week }}
       - run: pnpm data
+      # Match lists come from the private Hugging Face dataset; without the secret the site builds without them.
+      - run: pnpm matches:pull
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
       - run: pnpm build
