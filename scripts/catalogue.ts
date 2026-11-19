@@ -9,6 +9,7 @@ import { loadLists } from "../src/lib/matches.ts";
 import { ringIds, selectSeeds } from "./seeds.ts";
 import { tvmaze } from "./tvmaze.ts";
 import { detailsByTvmaze, sitelinksByTvmaze } from "./wikidata.ts";
+import { articleTexts, saysCancelled } from "./wikipedia.ts";
 
 const CACHE = "data/tvmaze";
 
@@ -81,5 +82,12 @@ for (const [i, id] of ids.entries()) {
   shows.push(toShow(raw, wd[id] ?? undefined));
   if (i % 100 === 99) console.log(`${i + 1} / ${ids.length} shows`);
 }
+// Cancelled: the AI's "cancelled" counts only when the show's Wikipedia article says the series was cancelled.
+const aiCancelled = new Set(loadLists().filter((l) => l.ending === "cancelled").map((l) => l.id));
+const check = shows.filter((s) => s.status === "ended" && s.wikipedia && aiCancelled.has(s.id));
+const texts = await articleTexts(check.map((s) => s.wikipedia!));
+for (const s of check) if (texts[s.wikipedia!] && saysCancelled(s.name, texts[s.wikipedia!]!)) s.status = "cancelled";
+console.log(`${shows.filter((s) => s.status === "cancelled").length} of ${check.length} AI-cancelled shows confirmed by Wikipedia`);
+
 writeFileSync(CATALOGUE, JSON.stringify(uniqueSlugs(shows)));
 console.log(`wrote ${CATALOGUE}: ${shows.length} shows`);
