@@ -21,4 +21,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm test
+      # Fetched data is never committed, so CI builds from a fresh fetch.
+      - run: pnpm data
       - run: pnpm build
