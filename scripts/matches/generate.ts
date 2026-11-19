@@ -5,7 +5,8 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { loadCatalogue, type Show } from "../../src/lib/catalogue.ts";
+import { loadCatalogue } from "../../src/lib/catalogue.ts";
+import { evalShows, type EvalShow } from "../eval/shows.ts";
 import type { Pick } from "./resolve.ts";
 
 export type Ending = "planned" | "cancelled" | "ongoing" | "unsure";
@@ -38,7 +39,7 @@ const OUT = opt("out", "data/matches/lists");
 const SAMPLE = Number(opt("sample", "0"));
 const ids = args.filter((a, i) => /^\d+$/.test(a) && !args[i - 1]?.startsWith("--")).map(Number);
 
-const describe = (s: Show) => `- id ${s.id}: ${s.name} (${[s.premiered?.slice(0, 4), s.platform, s.language].filter(Boolean).join(", ")})`;
+const describe = (s: EvalShow) => `- id ${s.id}: ${s.name} (${[s.premiered?.slice(0, 4), s.platform, s.language].filter(Boolean).join(", ")})`;
 
 /** The first JSON object in a reply, ignoring any prose before or after it (which may itself contain braces). */
 function firstObject(text: string) {
@@ -57,7 +58,7 @@ function firstObject(text: string) {
 }
 
 /** One Claude call for a batch of shows. Runs outside the repo so no project memory or instructions leak in. */
-function ask(batch: Show[]) {
+function ask(batch: EvalShow[]) {
   const win = process.platform === "win32"; // on Windows the call goes through a shell, which needs the empty tool list quoted
   const out = execFileSync("claude", ["-p", "--model", MODEL, "--tools", win ? '""' : "", "--no-session-persistence", "--output-format", "json"], {
     input: PROMPT + batch.map(describe).join("\n"),
@@ -74,8 +75,8 @@ function ask(batch: Show[]) {
 }
 
 // A sample takes every nth show, so it spans the popularity range of the catalogue.
-let shows = loadCatalogue();
-if (ids.length) shows = shows.filter((s) => ids.includes(s.id));
+// Explicit ids may be shows outside the catalogue (TVmaze is asked for them), so an eval can cover shows without a page.
+let shows: EvalShow[] = ids.length ? await evalShows(ids) : loadCatalogue();
 if (SAMPLE) shows = shows.filter((_, i) => i % Math.floor(shows.length / SAMPLE) === 0).slice(0, SAMPLE);
 const todo = shows.filter((s) => !existsSync(`${OUT}/${s.id}.json`));
 mkdirSync(OUT, { recursive: true });
