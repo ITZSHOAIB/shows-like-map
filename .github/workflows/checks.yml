@@ -28,8 +28,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: data
-          # Bump v2 when the catalogue grows: a cache key that already exists is never saved again.
-          key: data-v2-${{ steps.week.outputs.week }}
+          # Bump the version when the cached data grows (v3: Wikipedia articles): a cache key that already exists is never saved again.
+          key: data-v3-${{ steps.week.outputs.week }}
       # Match lists come from the private Hugging Face dataset; without the secret the site builds without them.
       # They go first: the catalogue adds the ring of shows the seed lists link to.
       - run: pnpm matches:pull

@@ -2,7 +2,8 @@
 // scripts/catalogue.ts writes it; pages read it at build time.
 import { existsSync, readFileSync } from "node:fs";
 
-export type Status = "running" | "ended" | "uncertain" | "upcoming";
+// "cancelled" is an ended show cut off by its network: the AI says so and its Wikipedia article confirms it (#2).
+export type Status = "running" | "ended" | "cancelled" | "uncertain" | "upcoming";
 
 export interface Show {
   id: number; // TVmaze id
@@ -129,6 +130,7 @@ export function hours(minutes: number): string {
 export const STATUS_LABEL: Record<Status, string> = {
   running: "Ongoing",
   ended: "Ended",
+  cancelled: "Cancelled",
   uncertain: "Future unclear",
   upcoming: "Not out yet",
 };
