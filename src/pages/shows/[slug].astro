@@ -1,12 +1,20 @@
 ---
 // Bare show page (catalogue tracer): the commitment facts and the TVmaze credit. The Drill down design comes in #3.
 import { hours, loadCatalogue, STATUS_LABEL, type Show } from "../../lib/catalogue";
+import { loadMatches, type Match } from "../../lib/matches";
 
 export function getStaticPaths() {
-  return loadCatalogue().map((show) => ({ params: { slug: show.slug }, props: { show } }));
+  const catalogue = loadCatalogue();
+  const slugs = new Map(catalogue.map((s) => [s.id, s.slug]));
+  const matches = loadMatches();
+  // A match links to its own page when it has one; the one-ring slice of #2 gives every match a page.
+  return catalogue.map((show) => ({
+    params: { slug: show.slug },
+    props: { show, matches: (matches.get(show.id) ?? []).map((m) => ({ ...m, slug: slugs.get(m.id) })) },
+  }));
 }
 
-const { show } = Astro.props as { show: Show };
+const { show, matches } = Astro.props as { show: Show; matches: (Match & { slug?: string })[] };
 const year = show.premiered?.slice(0, 4);
 ---
 
@@ -37,6 +45,22 @@ const year = show.premiered?.slice(0, 4);
         {show.cast.length > 0 && <dd>{show.cast.join(", ")}</dd>}
       </dl>
       {show.summary && <p>{show.summary}</p>}
+      {
+        matches.length > 0 && (
+          <section>
+            <h2>Shows like {show.name}</h2>
+            <ol>
+              {matches.map((m) => (
+                <li>
+                  {m.slug ? <a href={`/shows/${m.slug}`}>{m.name}</a> : <span>{m.name}</span>}
+                  {m.year && <span> ({m.year})</span>}
+                  <p>{m.why}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )
+      }
     </main>
     <footer>
       <p>
@@ -68,5 +92,9 @@ const year = show.premiered?.slice(0, 4);
   }
   dd {
     margin: 0;
+  }
+  li p {
+    margin: 0 0 0.75rem;
+    color: #555;
   }
 </style>

@@ -40,6 +40,22 @@ const ids = args.filter((a, i) => /^\d+$/.test(a) && !args[i - 1]?.startsWith("-
 
 const describe = (s: Show) => `- id ${s.id}: ${s.name} (${[s.premiered?.slice(0, 4), s.platform, s.language].filter(Boolean).join(", ")})`;
 
+/** The first JSON object in a reply, ignoring any prose before or after it (which may itself contain braces). */
+function firstObject(text: string) {
+  const start = text.indexOf("{");
+  let depth = 0, inString = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === "\\") i++;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) return JSON.parse(text.slice(start, i + 1));
+  }
+  throw new Error("no complete JSON object in the reply");
+}
+
 /** One Claude call for a batch of shows. Runs outside the repo so no project memory or instructions leak in. */
 function ask(batch: Show[]) {
   const win = process.platform === "win32"; // on Windows the call goes through a shell, which needs the empty tool list quoted
@@ -52,8 +68,7 @@ function ask(batch: Show[]) {
     timeout: 15 * 60_000,
   });
   const res = JSON.parse(out);
-  const text: string = res.result;
-  const lists = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  const lists = firstObject(res.result);
   // total_cost_usd is the API list price; under a subscription it is notional, but it still compares configs fairly.
   return { lists, stats: { ms: res.duration_ms, usd: res.total_cost_usd, usage: res.usage } };
 }
