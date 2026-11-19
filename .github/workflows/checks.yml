@@ -22,6 +22,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-      # Fetched data is never committed, so CI builds from a fresh fetch.
+      # Fetched data is never committed, so CI fetches it. The cache is renewed weekly to spare TVmaze.
+      - id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: data
+          key: data-${{ steps.week.outputs.week }}
       - run: pnpm data
       - run: pnpm build

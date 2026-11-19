@@ -30,6 +30,11 @@ test("hours to finish count aired regular episodes, falling back to the average 
   assert.equal(s.status, "running");
 });
 
+test("hours to finish are unknown when TVmaze has no runtimes", () => {
+  const s = toShow({ id: 3, name: "Maharani", status: "Ended", url: "u", _embedded: { episodes: [ep(1, null), ep(1, null)] } }, now);
+  assert.equal(s.minutes, null);
+});
+
 test("platform prefers the web channel, summary is plain text", () => {
   const s = toShow({
     id: 2,

@@ -16,7 +16,7 @@
   - seasons
   - the platform it's on
 - **Filters people can actually act on:** finished only, under N hours, my platforms, language.
-- **India-first:** Indian web series are first-class, and Indian shows favour Indian picks.
+- **Global first, India next** (amended 2026-11-19): build a strong global catalogue and matches first. Indian web series become first-class after that, with Indian shows favouring Indian picks.
 
 ## Consequences
 

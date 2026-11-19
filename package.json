@@ -11,7 +11,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "astro sync && tsc --noEmit",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.ts\"",
     "data": "node scripts/catalogue.ts"
   },
   "dependencies": {
