@@ -3,14 +3,13 @@
 //       (one show per line, sorted by id, so each upload is a readable diff).
 // push: pack, then upload it with the `hf` CLI.
 // pull: download lists.jsonl for the build. Skipped with a warning when HF_TOKEN is unset, so builds still pass, without matches.
-// Usage: node scripts/matches/store.ts pack|push|pull   (HF_DATASET overrides the dataset repo)
-import { execFileSync } from "node:child_process";
+// Usage: node scripts/matches/store.ts pack|push|pull
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { PackedList } from "../../src/lib/matches.ts";
+import { download, REPO, upload } from "../hf.ts";
 import type { List } from "./generate.ts";
 import { validate } from "./resolve.ts";
 
-const REPO = process.env.HF_DATASET ?? "Sohab4tech/shows-like-map";
 const DIR = "data/matches/lists";
 const FILE = "data/matches/lists.jsonl";
 
@@ -29,16 +28,16 @@ if (cmd === "pack" || cmd === "push") {
   }
   writeFileSync(FILE, lines.join("\n") + "\n");
   console.log(`packed ${ids.length} lists, ${valid} valid picks, into ${FILE}`);
-  if (cmd === "push") execFileSync("hf", ["upload", REPO, FILE, "lists.jsonl", "--repo-type", "dataset", "--commit-message", `Update ${ids.length} match lists`], { stdio: "inherit" });
+  if (cmd === "push") upload(FILE, "lists.jsonl", `Update ${ids.length} match lists`);
 } else if (cmd === "pull") {
   const token = process.env.HF_TOKEN;
   if (!token) {
     console.warn("HF_TOKEN is not set: building without match lists");
   } else {
-    const res = await fetch(`https://huggingface.co/datasets/${REPO}/resolve/main/lists.jsonl`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error(`Hugging Face: HTTP ${res.status} for ${REPO}/lists.jsonl`);
+    const text = await download("lists.jsonl", token);
+    if (text === null) throw new Error(`Hugging Face: ${REPO} has no lists.jsonl`);
     mkdirSync("data/matches", { recursive: true });
-    writeFileSync(FILE, await res.text());
+    writeFileSync(FILE, text);
     console.log(`pulled ${readFileSync(FILE, "utf8").split("\n").filter(Boolean).length} match lists from ${REPO}`);
   }
 } else {

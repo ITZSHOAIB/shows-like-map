@@ -1,0 +1,52 @@
+name: Data
+
+# Rebuilds the catalogue from TVmaze, Wikidata and Wikipedia once a week (or by hand) and publishes it to the
+# Hugging Face dataset that checks and deploys build from. Run by hand on a branch to try a data change: it only
+# publishes from main.
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Mondays, 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency: data
+
+jobs:
+  catalogue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Fetched data is refetched weekly to pick up new episodes and statuses. Every run saves what it fetched,
+      # even when it fails, so a rerun in the same week resumes instead of starting over.
+      - id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: data-${{ steps.week.outputs.week }}-${{ github.run_id }}
+          restore-keys: data-${{ steps.week.outputs.week }}-
+      # The catalogue adds the ring of shows the seed lists link to, so the lists go first.
+      - run: pnpm matches:pull
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      - run: pnpm data
+      - if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: data-${{ steps.week.outputs.week }}-${{ github.run_id }}-${{ github.run_attempt }}
+      # Publish only a catalogue the site builds from.
+      - run: pnpm build
+      - if: github.ref == 'refs/heads/main'
+        run: pip install --quiet huggingface_hub && pnpm catalogue:push
+        env:
+          HF_TOKEN: ${{ secrets.HF_WRITE_TOKEN }}
