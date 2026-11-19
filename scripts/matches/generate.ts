@@ -1,7 +1,7 @@
 // Generate "shows like X" lists with a fresh, tool-less Claude session per batch (decision 0003).
 // The model gets only each show's name, year, platform and language, and answers from its own knowledge.
 // Lists are cached per show in <out>/<tvmazeId>.json; per-call time and usage go to <out>/_calls.jsonl.
-// Usage: node scripts/matches/generate.ts [--model opus] [--batch 5] [--out data/matches/lists] [--sample 50] [ids...]
+// Usage: node scripts/matches/generate.ts [--model opus] [--batch 10] [--out data/matches/lists] [--sample 50] [ids...]
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -33,7 +33,7 @@ Shows:
 const args = process.argv.slice(2);
 const opt = (name: string, fallback: string) => (args.includes(`--${name}`) ? args[args.indexOf(`--${name}`) + 1] : fallback);
 const MODEL = opt("model", "opus");
-const BATCH = Number(opt("batch", "5"));
+const BATCH = Number(opt("batch", "10"));
 const OUT = opt("out", "data/matches/lists");
 const SAMPLE = Number(opt("sample", "0"));
 const ids = args.filter((a, i) => /^\d+$/.test(a) && !args[i - 1]?.startsWith("--")).map(Number);
