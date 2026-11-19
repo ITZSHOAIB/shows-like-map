@@ -29,10 +29,7 @@ if (cmd === "pack" || cmd === "push") {
   }
   writeFileSync(FILE, lines.join("\n") + "\n");
   console.log(`packed ${ids.length} lists, ${valid} valid picks, into ${FILE}`);
-  if (cmd === "push") execFileSync("hf", ["upload", REPO, FILE, "lists.jsonl", "--repo-type", "dataset", "--commit-message", `Update ${ids.length} match lists`], {
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
+  if (cmd === "push") execFileSync("hf", ["upload", REPO, FILE, "lists.jsonl", "--repo-type", "dataset", "--commit-message", `Update ${ids.length} match lists`], { stdio: "inherit" });
 } else if (cmd === "pull") {
   const token = process.env.HF_TOKEN;
   if (!token) {
