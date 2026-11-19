@@ -28,13 +28,56 @@ export async function resolve(title: string, year: number | null): Promise<Resol
   return cache[key];
 }
 
-/** Picks that exist on TVmaze with a first-air year within one of the model's, minus the seed itself and repeats. */
+const AKAS = "data/matches/akas.json";
+const akaCache: Record<number, string[]> = existsSync(AKAS) ? JSON.parse(readFileSync(AKAS, "utf8")) : {};
+
+/** TVmaze's search also matches on partial words, so "Scream" can land on Scream Queens. A hit counts only when it is
+ *  the same title, the title with a possessive prefix or a subtitle ("Marvel's Daredevil", "Arcane: League of Legends"),
+ *  or one of the show's other titles on TVmaze ("Goblin" for Guardian: The Lonely and Great God). */
+export async function sameShow(title: string, show: Resolved): Promise<boolean> {
+  const t = key(title);
+  // The name, then the name without a possessive prefix, a series prefix, a subtitle, or a presenter.
+  const names = [
+    show.name,
+    show.name.replace(/^[^:]*?['’]s\s+/, ""),
+    show.name.replace(/^[^:]*:\s*/, ""),
+    show.name.replace(/\s*(:|\s-\s).*$/, ""),
+    show.name.replace(/\s+(with|by)\s+.*$/i, ""),
+  ];
+  if (names.some((n) => near(key(n), t))) return true;
+  if (!(show.id in akaCache)) {
+    akaCache[show.id] = ((await tvmaze(`/shows/${show.id}/akas`)) ?? []).map((a: any) => a.name);
+    mkdirSync("data/matches", { recursive: true });
+    writeFileSync(AKAS, JSON.stringify(akaCache));
+  }
+  return akaCache[show.id].some((a) => near(key(a), t));
+}
+
+/** A title for comparing: "&" is "and", no leading article, dots and apostrophes dropped ("Q.C." is "QC"). */
+export const key = (t: string) => norm(t.replace(/&/g, " and ").replace(/[.'’]/g, "").replace(/ı/g, "i")).replace(/^(the|a) /, "");
+
+/** Equal, or a spelling variant: one edit per ten characters ("Haikyu" and "Haikyuu"), never a different word. */
+export function near(a: string, b: string) {
+  if (a === b) return true;
+  const limit = Math.floor(Math.max(a.length, b.length) / 10);
+  if (!limit || Math.abs(a.length - b.length) > limit) return false;
+  let row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[b.length] <= limit;
+}
+
+/** Picks that are the same show on TVmaze, with a first-air year within one of the model's, minus the seed itself and repeats. */
 export async function validate(seedId: number, picks: Pick[]): Promise<Valid[]> {
   const out: Valid[] = [];
   for (const p of picks) {
     const show = await resolve(p.title, p.year);
     if (!show || show.id === seedId || out.some((v) => v.show.id === show.id)) continue;
-    if (p.year && show.year && Math.abs(show.year - p.year) > 1) continue;
+    if (p.year && (!show.year || Math.abs(show.year - p.year) > 1)) continue;
+    if (!(await sameShow(p.title, show))) continue;
     out.push({ ...p, show });
   }
   return out;
