@@ -16,7 +16,7 @@ export interface Show {
   genres: string[];
   seasons: number;
   episodes: number;
-  minutes: number; // total runtime of aired regular episodes: "hours to finish" is minutes / 60
+  minutes: number | null; // total runtime of aired regular episodes, null when TVmaze has no runtimes: "hours to finish" is minutes / 60
   poster: string | null; // TVmaze CDN, hotlinked
   summary: string | null; // plain text
   tvmaze: string; // show page on TVmaze, for credit
@@ -41,8 +41,9 @@ export function aired(episodes: Episode[], now = new Date()): Episode[] {
   return episodes.filter((e) => e.type === "regular" && e.airstamp && new Date(e.airstamp) <= now);
 }
 
-/** Total minutes to watch every aired episode. Episodes without a runtime use the show's average. */
-export function minutesToFinish(episodes: Episode[], averageRuntime: number | null): number {
+/** Total minutes to watch every aired episode. Episodes without a runtime use the show's average; null if there's neither. */
+export function minutesToFinish(episodes: Episode[], averageRuntime: number | null): number | null {
+  if (averageRuntime === null && episodes.some((e) => e.runtime === null)) return null;
   return episodes.reduce((sum, e) => sum + (e.runtime ?? averageRuntime ?? 0), 0);
 }
 

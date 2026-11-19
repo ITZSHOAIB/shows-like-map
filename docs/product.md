@@ -13,7 +13,7 @@ You finish a show you loved and want another like it. The usual answers (listicl
 
 ## Who it's for
 
-People in India who watch series and web series on streaming services, starting from a show they already loved. They come from search ("shows like Panchayat") or share links.
+People who watch series on streaming services, starting from a show they already loved: first a strong global catalogue, then Indian web series as the next priority. They come from search ("shows like Dark") or share links.
 
 ## What it does
 
@@ -26,7 +26,7 @@ People in India who watch series and web series on streaming services, starting 
 ## Edges
 
 - **Commitment-first:** hours to finish and finished/cancelled status on every card.
-- **India-first:** Indian web series are first-class, and Indian shows get Indian picks.
+- **Global first, India next:** a strong global catalogue first; then Indian web series as first-class, with Indian shows getting Indian picks.
 - **Good matches:** AI-curated lists validated against real data (an eval scored 0.89 top-5 precision, versus 0.25 for TMDB's own recommendations).
 - **Fun to explore:** drill-down, peek and path map, not a static list.
 - **Open:** the data is open (TVmaze CC BY-SA, Wikidata CC0) and the "shows like X" graph is published as an open dataset.
@@ -42,5 +42,5 @@ People in India who watch series and web series on streaming services, starting 
 ## Success looks like
 
 - A visitor from "shows like X" search finds a match they start watching.
-- Show pages rank for "shows like <show>" searches, starting with Indian titles.
+- Show pages rank for "shows like <show>" searches.
 - Match quality holds up on lesser-known Indian shows, not just famous ones.

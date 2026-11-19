@@ -2,7 +2,7 @@
 
 **Find your next show, one you'll actually finish.**
 
-Start from a series you loved and get the shows a fan of it would enjoy next. Each one comes with a one-line reason, how long it takes to finish, whether it ended or was cancelled, and the platform it's on. India-first, free, no ads, no login.
+Start from a series you loved and get the shows a fan of it would enjoy next. Each one comes with a one-line reason, how long it takes to finish, whether it ended or was cancelled, and the platform it's on. Global first, with Indian shows next. Free, no ads, no login.
 
 > Status: planning and scaffolding. The UI prototypes and data experiments are on the [`prototype`](../../tree/prototype) branch.
 
