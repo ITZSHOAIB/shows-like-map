@@ -9,7 +9,11 @@ const SHOWS = ["the-office-2001", "the-simpsons", "better-call-saul", "seinfeld"
 const TEXT = [".trail-label", ".chip span", ".eyebrow", "h1", ".h-text .muted", ".facts li"];
 
 async function lowestContrast(el: Locator) {
-  const color = await el.evaluate((e) => getComputedStyle(e).color);
+  const { color, radius } = await el.evaluate((e) => {
+    const cs = getComputedStyle(e);
+    // Past a rounded corner is the page, not the element: skip that far in from each side.
+    return { color: cs.color, radius: Math.min(parseFloat(cs.borderTopLeftRadius) || 0, e.getBoundingClientRect().height / 2) };
+  });
   const hide = (on: boolean) =>
     el.evaluate((e, on) => {
       const s = (e as HTMLElement).style;
@@ -20,13 +24,14 @@ async function lowestContrast(el: Locator) {
   const png = await el.screenshot({ animations: "disabled" });
   await hide(false);
   return el.page().evaluate(
-    async ({ b64, color }) => {
+    async ({ b64, color, radius }) => {
       const img = new Image();
       img.src = `data:image/png;base64,${b64}`;
       await img.decode();
       const ctx = new OffscreenCanvas(img.width, img.height).getContext("2d")!;
       ctx.drawImage(img, 0, 0);
-      const px = ctx.getImageData(2, 2, img.width - 4, img.height - 4).data; // inset past the rounded, anti-aliased edge
+      const x = Math.max(2, Math.ceil(radius)); // inset past the rounded, anti-aliased edge
+      const px = ctx.getImageData(x, 2, img.width - 2 * x, img.height - 4).data;
       const channel = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
       const lum = (r: number, g: number, b: number) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
       const [r, g, b] = color.match(/[\d.]+/g)!.map(Number);
@@ -38,7 +43,7 @@ async function lowestContrast(el: Locator) {
       }
       return lowest;
     },
-    { b64: png.toString("base64"), color },
+    { b64: png.toString("base64"), color, radius },
   );
 }
 
