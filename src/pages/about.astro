@@ -1,0 +1,65 @@
+---
+// About (#4): where the data comes from, how the lists are made (with AI, said plainly), the licences, and where to
+// report a problem. Linked from every page's footer.
+import Base from "../layouts/Base.astro";
+
+const REPO = "https://github.com/ITZSHOAIB/shows-like-map";
+---
+
+<Base
+  title="About Shows Like Map: data, AI and corrections"
+  description="Where Shows Like Map's data comes from, how its shows-like lists are made with AI and checked against TVmaze, the licences, and how to report a problem."
+  path="/about/"
+>
+  <main class="wrap about">
+    <p class="eyebrow">About</p>
+    <h1>Shows Like Map</h1>
+    <p class="lead">Start from a show you loved. See the shows a fan of it would enjoy next, with how long each takes to finish, whether it ended, and why it's like the one you started from.</p>
+
+    <h2>Where the data comes from</h2>
+    <p>
+      Shows, episodes, runtimes, status, networks, summaries and posters come from <a href="https://www.tvmaze.com/">TVmaze</a> (<a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>).
+      Cast, creators and links to other sites come from <a href="https://www.wikidata.org/">Wikidata</a> (CC0). Hours to finish add up the runtimes of the episodes that have aired.
+      Posters load from TVmaze's servers, so TVmaze sees those requests. Nothing here comes from TMDB or IMDb.
+    </p>
+    <p>"Where to watch" links to a search on <a href="https://www.justwatch.com/in">JustWatch</a>. The site doesn't know which service has a show.</p>
+
+    <h2>How the lists are made</h2>
+    <p>
+      <strong>The "shows like" lists are written with AI and checked against TVmaze.</strong> For each show, a Claude model is given only
+      the show's name, year and platform, and suggests shows a fan would enjoy next, each with a short reason. Every suggestion must resolve to a
+      real show on TVmaze, with a first-air year that fits; one that doesn't is dropped. The lists are made once, ahead of time, not as you browse.
+    </p>
+    <p>
+      They're good, not perfect. Scored against a judge on well-known shows, 92% of the top five were rated strong; on lesser-known Indian
+      shows it was 75%, and by a human check of 20 of those picks, 19 were fine. The method and the numbers are in the <a href={`${REPO}/blob/main/docs/decisions/0003-ai-curated-matches.md`}>decision record</a> and the <a href={`${REPO}/blob/main/docs/eval/2026-11-20-indian-shows.md`}>eval</a>.
+    </p>
+
+    <h2>Licences</h2>
+    <ul>
+      <li>The code is <a href={`${REPO}/blob/main/LICENSE`}>MIT</a>, and <a href={REPO}>it's all public</a>.</li>
+      <li>The show data is TVmaze's (CC BY-SA 4.0) and Wikidata's (CC0). The "shows like" lists will be published as an open dataset under CC BY-SA 4.0.</li>
+    </ul>
+
+    <h2>Your data</h2>
+    <p>No accounts, no ads and no analytics. The time and hours you choose stay in your browser tab and go nowhere. The site is hosted on Cloudflare, which keeps ordinary server logs.</p>
+
+    <h2 id="report">Report a problem</h2>
+    <p>
+      A wrong match, a wrong number, a missing show, or something you want taken down: <a href={`${REPO}/issues/new`}>open an issue on GitHub</a> with the link to the page.
+      Corrections to TVmaze's own data are best made on <a href="https://www.tvmaze.com/">TVmaze</a>, and reach this site when its data is next refreshed.
+    </p>
+  </main>
+</Base>
+
+<style>
+  .about { padding-top: var(--space-6); padding-bottom: var(--space-4); max-width: calc(65ch + 2 * var(--gutter)); }
+  .about > * { max-width: 65ch; }
+  h1 { font-size: var(--text-xl); line-height: 1.02; margin: var(--space-1) 0 var(--space-3); }
+  .lead { font-size: var(--text-lg); line-height: 1.35; margin: 0 0 var(--space-6); }
+  h2 { font-size: var(--text-lg); margin: var(--space-6) 0 var(--space-2); }
+  p, li { margin: 0 0 var(--space-3); }
+  ul { padding-left: var(--space-4); margin: 0 0 var(--space-3); }
+  a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  a:hover { text-decoration-thickness: 2px; }
+</style>

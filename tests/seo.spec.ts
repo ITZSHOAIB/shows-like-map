@@ -5,12 +5,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { DESCRIPTION_MAX } from "../src/lib/seo";
 
 const DIST = "dist";
-const pages = existsSync(DIST)
-  ? [
-      "index.html",
-      ...readdirSync(`${DIST}/shows`).map((slug) => `shows/${slug}/index.html`),
-    ]
-  : [];
+const shows = existsSync(DIST) ? readdirSync(`${DIST}/shows`).map((slug) => `shows/${slug}/index.html`) : [];
+const pages = existsSync(DIST) ? ["index.html", "about/index.html", ...shows] : [];
 const read = (file: string) => readFileSync(`${DIST}/${file}`, "utf8");
 const meta = (html: string, attr: string, name: string) =>
   html.match(new RegExp(`<meta ${attr}="${name}" content="([^"]*)"`))?.[1];
@@ -74,7 +70,7 @@ test("a name two shows share carries the year, in the title and the description"
 
 test("each show's structured data parses, and a title can't break out of its script tag", () => {
   const bad: string[] = [];
-  for (const file of pages.slice(1)) {
+  for (const file of shows) {
     const html = read(file);
     const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     if (blocks.length !== 1) { bad.push(`${file}: ${blocks.length} blocks`); continue; }
@@ -87,6 +83,14 @@ test("each show's structured data parses, and a title can't break out of its scr
     }
   }
   expect(bad).toEqual([]);
+});
+
+test("the About page says the lists are made with AI, and where to report a problem", () => {
+  const html = read("about/index.html");
+  expect(html).toContain("written with AI and checked against TVmaze");
+  expect(html).toContain("https://github.com/ITZSHOAIB/shows-like-map/issues/new");
+  expect(read("index.html")).toContain('href="/about/"');
+  expect(read("shows/breaking-bad/index.html")).toContain('href="/about/"');
 });
 
 test("the sitemap lists exactly the pages built, each once, and the 404 stays out of it", () => {

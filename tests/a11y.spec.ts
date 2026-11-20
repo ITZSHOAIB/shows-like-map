@@ -5,8 +5,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"];
 
-// One page per state: the home page, linked matches, only unlinked matches (Planet Earth), a white poster, and the 404.
-const PAGES = ["/", "/shows/breaking-bad/", "/shows/planet-earth/", "/shows/the-office-2001/", "/missing-page/"];
+// One page per state: the home page, the About page, linked matches, only unlinked matches (Planet Earth), a white poster, and the 404.
+const PAGES = ["/", "/about/", "/shows/breaking-bad/", "/shows/planet-earth/", "/shows/the-office-2001/", "/missing-page/"];
 
 async function openSummary(page: Page) {
   const toggle = page.locator(".about summary");
