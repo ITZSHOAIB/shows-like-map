@@ -6,3 +6,7 @@ dist/
 # Fetched and generated data stays out of git; the published dataset ships as a release asset instead.
 data/
 src/data/generated/
+
+# Playwright output
+test-results/
+playwright-report/
