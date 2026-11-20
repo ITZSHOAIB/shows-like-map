@@ -1,6 +1,6 @@
 ---
 // A row that scrolls sideways (the matches, a step further out, the home page's time rows): wrap its .track in this.
-// Its edges fade where there's more to see, on every screen. With a mouse, arrows scroll it a screen at a time; touch
+// Its edges fade where there's more to see, on every screen. With a mouse, arrows page it by whole cards; touch
 // and trackpads swipe it natively, and keyboard users Tab along the cards, which scroll themselves into view. The arrows
 // are for the pointer only, so they're hidden from screen readers and out of the Tab order.
 import Icon from "./Icon.astro";
@@ -34,10 +34,42 @@ import Icon from "./Icon.astro";
     document.addEventListener("change", soon);
     document.addEventListener("reset", () => setTimeout(soon));
     addEventListener("pageshow", soon);
+    // Paging, as streaming apps do it: by the cards whole inside the page column, never by a share of the window (on a
+    // wide screen that skipped cards). Next brings the first card not wholly in view to the column's start; back brings
+    // the card before the first one wholly in view to its end. Every page lands on a snap point, so snapping can't move
+    // it on, and nothing is skipped or shown twice. A click while it's still moving pages on from where it's going.
+    let goal: number | null = null;
+    const pageFrom = (dir: 1 | -1) => {
+      const pad = parseFloat(getComputedStyle(track).paddingLeft);
+      const from = goal ?? track.scrollLeft;
+      const lo = from, hi = from + track.clientWidth - 2 * pad; // the column, in the positions that put a card at its start
+      const base = track.getBoundingClientRect().left - track.scrollLeft + pad;
+      const cards = [...track.children].flatMap((li) => {
+        const b = li.getBoundingClientRect();
+        return b.width ? [{ at: b.left - base, end: b.right - base }] : [];
+      });
+      const max = track.scrollWidth - track.clientWidth;
+      if (dir > 0) {
+        const next = cards.find((c) => c.end > hi + 1);
+        return next ? Math.min(next.at, max) : max;
+      }
+      const first = cards.findIndex((c) => c.at >= lo - 1);
+      if (first <= 0) return 0;
+      const end = cards[first - 1].end, width = hi - lo;
+      const start = cards.find((c) => end - c.at <= width + 1)!;
+      return Math.max(start.at, 0);
+    };
+    const settle = () => (goal = null);
+    track.addEventListener("scrollend", settle);
+    track.addEventListener("pointerdown", settle); // a drag or a wheel takes over from the arrows
+    track.addEventListener("wheel", settle, { passive: true });
     for (const [cls, dir] of [["prev", -1], ["next", 1]] as const) {
       rail.querySelector(`.${cls}`)!.addEventListener("click", () => {
-        // Most of a screen, so the card at the edge stays in view and you keep your place; snapping lines it up.
-        track.scrollBy({ left: dir * track.clientWidth * 0.8, behavior: still.matches ? "auto" : "smooth" });
+        const to = pageFrom(dir);
+        if (Math.abs(to - track.scrollLeft) < 1) return settle();
+        goal = to;
+        track.scrollTo({ left: to, behavior: still.matches ? "auto" : "smooth" });
+        if (still.matches) settle();
       });
     }
     update();
