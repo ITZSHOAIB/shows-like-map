@@ -46,7 +46,7 @@ test("a page with the path passes axe and fits 320px", async ({ page }) => {
 // Approximated with a 4x slower CPU and Lighthouse's mobile network (150 ms round trips, 1.6 Mbps, applied by
 // scripts/serve.ts), with the finger down for 100 ms as in a real tap. Posters come from TVmaze and don't hold it up.
 test("a tap shows the next page from the prefetch, in under 300 ms", async ({ page, browserName, baseURL }, info) => {
-  test.skip(browserName !== "chromium" || info.project.name !== "dark", "measured once, in Chromium");
+  test.skip(browserName !== "chromium", "speculation rules and view transitions are Chromium's");
   await page.context().addCookies([{ name: "net", value: `${process.env.RTT ?? 150},1600`, url: baseURL! }]);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.CPU ?? 4) });

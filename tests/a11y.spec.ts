@@ -71,3 +71,32 @@ test("animations stop when reduced motion is on", async ({ page }) => {
   const seconds = await page.locator(".about .summary").evaluate((el) => parseFloat(getComputedStyle(el).transitionDuration));
   expect(seconds).toBeLessThan(0.001);
 });
+
+test("the site stays dark when the phone is set to light", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/shows/breaking-bad/");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(7, 8, 12)");
+});
+
+// Windows High Contrast and other forced-colour modes replace our colours with the system's: what carries meaning
+// must survive as text, borders and outlines, since backgrounds and shadows are dropped. axe doesn't model forced
+// colours (it reports our own colours on white), so this checks the result directly.
+test("forced colours keep focus rings, badges and path chips visible", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto("/shows/breaking-bad/");
+  await page.locator(".track a").first().click();
+  await expect(page.getByRole("navigation", { name: "Your path" })).toBeVisible();
+  await expect(page.locator(".backdrop")).toBeHidden();
+  const canvas = await page.locator("body").evaluate((b) => getComputedStyle(b).color);
+  await expect(page.locator("h1")).toHaveCSS("color", canvas);
+
+  for (const el of [page.locator(".facts .badge"), page.locator(".trail .chip").first()]) {
+    await expect(el).toHaveCSS("border-top-style", "solid");
+    await expect(el).not.toHaveCSS("border-top-width", "0px");
+  }
+  const card = page.locator(".track a").first();
+  await card.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(card.locator(".poster")).toHaveCSS("outline-style", "solid");
+});
