@@ -8,6 +8,7 @@ import { hours, loadCatalogue, STATUS_LABEL, type Show, type Status } from "../.
 import { filterAttrs, HOUR_LIMITS } from "../../lib/filters";
 import { loadMatches, type Match } from "../../lib/matches";
 import { peekOf, type Peek as PeekData } from "../../lib/peek";
+import { watchUrl } from "../../lib/watch";
 
 export function getStaticPaths() {
   const catalogue = loadCatalogue();
@@ -107,6 +108,9 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
           {show.seasons} {show.seasons === 1 ? "season" : "seasons"} · {show.episodes} episodes{show.language && <> · {show.language}</>}
         </p>
       </div>
+      <a class="pill watch" href={watchUrl(show.name)}>
+        <Icon name="monitor-play" /> Where to watch <span class="muted">on JustWatch</span> <Icon name="arrow-up-right" />
+      </a>
       {/* Three lines of summary keep the matches near the top; the toggle opens the rest and the people. The text sits
           outside <summary> so screen readers hear a short button, not the whole summary. */}
       {
@@ -293,6 +297,11 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-3) 0 var(--space-2); padding: 0; }
   .h-text { min-width: 0; overflow-wrap: anywhere; }
   .h-text .muted { margin: 0; }
+  /* Where to watch: the one link off the site, so it says where it goes and points out of the page. */
+  .watch { grid-column: 1 / -1; justify-self: start; max-width: 100%; font: var(--label-weight) var(--text-sm) var(--font-label); }
+  @media (min-width: 720px) { .watch { grid-column: 2; } }
+  .watch:hover { border-color: var(--accent); }
+  .watch :global(.icon:first-child) { color: var(--accent); }
   .about { grid-column: 1 / -1; min-width: 0; max-width: 65ch; }
   @media (min-width: 720px) { .about { grid-column: 2; } }
   .summary { margin: 0; }
