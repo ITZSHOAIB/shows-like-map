@@ -1,101 +1,131 @@
 ---
-// Bare show page (catalogue tracer): the commitment facts and the TVmaze credit. The Drill down design comes in #3.
-import { hours, loadCatalogue, STATUS_LABEL, type Show } from "../../lib/catalogue";
+// The show page, "Drill down" (decision 0005), first slice of #3: the hero and rows of matches, static, no JavaScript.
+import Icon from "../../components/Icon.astro";
+import MatchCard from "../../components/MatchCard.astro";
+import Base from "../../layouts/Base.astro";
+import { hours, loadCatalogue, STATUS_LABEL, type Show, type Status } from "../../lib/catalogue";
 import { loadMatches, type Match } from "../../lib/matches";
 
 export function getStaticPaths() {
   const catalogue = loadCatalogue();
-  const slugs = new Map(catalogue.map((s) => [s.id, s.slug]));
+  const byId = new Map(catalogue.map((s) => [s.id, s]));
   // A match links to its own page when it has one; matches outside the catalogue show unlinked (decision in #2).
   const matches = loadMatches();
   return catalogue.map((show) => ({
     params: { slug: show.slug },
-    props: { show, matches: (matches.get(show.id) ?? []).map((m) => ({ ...m, slug: slugs.get(m.id) })) },
+    props: { show, matches: (matches.get(show.id) ?? []).map((m) => ({ match: m, show: byId.get(m.id) })) },
   }));
 }
 
-const { show, matches } = Astro.props as { show: Show; matches: (Match & { slug?: string })[] };
+const { show, matches } = Astro.props as { show: Show; matches: { match: Match; show?: Show }[] };
 const year = show.premiered?.slice(0, 4);
+const STATUS_ICON: Record<Status, string> = {
+  running: "broadcast",
+  ended: "check-circle",
+  cancelled: "x-circle",
+  uncertain: "question",
+  upcoming: "calendar-dots",
+};
+// The promise in the tagline: matches that ended properly and take a weekend or two. Its own block, easy to drop.
+const FINISH_HOURS = 30;
+const finishable = matches.filter((m) => m.show?.status === "ended" && m.show.minutes !== null && m.show.minutes <= FINISH_HOURS * 60);
+const description = `Shows like ${show.name}, each with why it's similar, whether it ended, and how many hours it takes to finish.`;
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Shows like {show.name} | Shows Like Map</title>
-    <link rel="canonical" href={new URL(`/shows/${show.slug}/`, Astro.site)} />
-    {show.summary && <meta name="description" content={show.summary} />}
-  </head>
-  <body>
-    <main>
-      {show.poster && <img src={show.poster} alt={`${show.name} poster`} width="210" height="295" />}
-      <h1>{show.name}{year && <span> ({year})</span>}</h1>
-      <dl>
-        <dt>Status</dt>
-        <dd>{STATUS_LABEL[show.status]}</dd>
-        <dt>To finish</dt>
-        <dd>{hours(show.minutes)} · {show.episodes} episodes · {show.seasons} {show.seasons === 1 ? "season" : "seasons"}</dd>
-        {show.platform && <dt>On</dt>}
-        {show.platform && <dd>{show.platform}</dd>}
-        {show.language && <dt>Language</dt>}
-        {show.language && <dd>{show.language}</dd>}
-        {show.creators.length > 0 && <dt>Created by</dt>}
-        {show.creators.length > 0 && <dd>{show.creators.join(", ")}</dd>}
-        {show.cast.length > 0 && <dt>Starring</dt>}
-        {show.cast.length > 0 && <dd>{show.cast.join(", ")}</dd>}
-      </dl>
-      {show.summary && <p>{show.summary}</p>}
+<Base title={`Shows like ${show.name} | Shows Like Map`} {description} path={`/shows/${show.slug}/`}>
+  <main>
+    <section class="hero wrap">
       {
-        matches.length > 0 && (
-          <section>
-            <h2>Shows like {show.name}</h2>
-            <ol>
-              {matches.map((m) => (
-                <li>
-                  {m.slug ? <a href={`/shows/${m.slug}/`}>{m.name}</a> : <span>{m.name}</span>}
-                  {m.year && <span> ({m.year})</span>}
-                  <p>{m.why}</p>
-                </li>
-              ))}
-            </ol>
-          </section>
+        show.poster ? (
+          <img class="poster h-poster" src={show.poster} alt={`${show.name} poster`} width="210" height="295" fetchpriority="high" />
+        ) : (
+          <span class="poster-ph h-poster">{show.name}</span>
         )
       }
-    </main>
-    <footer>
-      <p>
-        Show data from <a href={show.tvmaze}>TVmaze</a> (CC BY-SA 4.0) and
-        <a href={show.wikidata ? `https://www.wikidata.org/wiki/${show.wikidata}` : "https://www.wikidata.org/"}>Wikidata</a>.
-        {show.wikipedia && <a href={show.wikipedia}>Read more on Wikipedia</a>}
-      </p>
-    </footer>
-  </body>
-</html>
+      <div class="h-text">
+        <p class="eyebrow">If you liked</p>
+        <h1>{show.name}</h1>
+        <ul class="facts">
+          <li class={`badge s-${show.status}`}><Icon name={STATUS_ICON[show.status]} /> {STATUS_LABEL[show.status]}</li>
+          {show.minutes !== null && <li><Icon name="hourglass-medium" /> {hours(show.minutes)} to finish</li>}
+          {show.platform && <li><Icon name="television" /> {show.platform}</li>}
+          {year && <li><Icon name="calendar-dots" /> {year}</li>}
+        </ul>
+        <p class="muted small">
+          {show.seasons} {show.seasons === 1 ? "season" : "seasons"} · {show.episodes} episodes{show.language && <> · {show.language}</>}
+        </p>
+      </div>
+      {show.summary && <p class="summary">{show.summary}</p>}
+      {
+        (show.creators.length > 0 || show.cast.length > 0) && (
+          <dl class="people small">
+            {show.creators.length > 0 && <><dt>Created by</dt><dd>{show.creators.join(", ")}</dd></>}
+            {show.cast.length > 0 && <><dt>Starring</dt><dd>{show.cast.join(", ")}</dd></>}
+          </dl>
+        )
+      }
+    </section>
+
+    {
+      matches.length > 0 ? (
+        <div class="rows">
+          <section class="row">
+            <h2 class="wrap"><Icon name="sparkle" /> Shows like {show.name}</h2>
+            <div class="track">
+              {matches.map((m, i) => <MatchCard match={m.match} show={m.show} eager={i < 3} />)}
+            </div>
+          </section>
+          {finishable.length >= 2 && (
+            <section class="row">
+              <h2 class="wrap"><Icon name="hourglass-medium" /> Ones you'll actually finish <small class="muted">ended, under {FINISH_HOURS} h</small></h2>
+              <div class="track">
+                {finishable.map((m) => <MatchCard match={m.match} show={m.show} />)}
+              </div>
+            </section>
+          )}
+        </div>
+      ) : (
+        <p class="wrap muted">No matches for this show yet.</p>
+      )
+    }
+  </main>
+  <Fragment slot="credits">
+    <p>
+      About {show.name}: <a href={show.tvmaze}>TVmaze</a>{show.wikidata && <>, <a href={`https://www.wikidata.org/wiki/${show.wikidata}`}>Wikidata</a></>}{show.wikipedia && <>, <a href={show.wikipedia}>Wikipedia</a></>}.
+    </p>
+  </Fragment>
+</Base>
 
 <style>
-  body {
-    font-family: system-ui, sans-serif;
-    max-width: 40rem;
-    margin: 2rem auto;
-    padding: 0 1rem;
+  .small { font-size: 13px; }
+  .hero { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px 16px; align-items: end; padding-top: 8px; padding-bottom: 24px; }
+  @media (min-width: 720px) { .hero { grid-template-columns: 210px minmax(0, 1fr); gap: 16px 28px; } }
+  .h-poster { box-shadow: 0 20px 50px rgb(0 0 0 / 0.55); }
+  .eyebrow { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; color: var(--accent); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; }
+  h1 { font-size: clamp(28px, 6.5vw, 56px); line-height: 1.02; font-weight: 800; }
+  .facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 8px; padding: 0; }
+  .facts li {
+    display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--line); font-size: 13px; white-space: nowrap;
   }
-  img {
-    border-radius: 0.5rem;
+  .facts .badge { border-color: color-mix(in srgb, var(--s) 45%, transparent); background: color-mix(in srgb, var(--s) 12%, transparent); }
+  .h-text { min-width: 0; overflow-wrap: anywhere; }
+  .h-text .muted { margin: 0; }
+  .summary { grid-column: 1 / -1; min-width: 0; margin: 4px 0 0; max-width: 65ch; }
+  @media (min-width: 720px) { .summary { grid-column: 2; } }
+  .people { grid-column: 1 / -1; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 0; }
+  @media (min-width: 720px) { .people { grid-column: 2; } }
+  .people dt { color: var(--muted); }
+  .people dd { margin: 0; }
+
+  .rows { display: grid; gap: 28px; }
+  .row { min-width: 0; } /* a grid item grows to fit its track of cards otherwise, widening the page */
+  .row h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 20px; margin-bottom: 12px; }
+  .row h2 :global(.icon) { color: var(--accent); align-self: center; }
+  .row h2 small { font: 500 12.5px var(--font-body); }
+  .track {
+    display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+    padding: 4px max(16px, calc((100% - 1100px) / 2 + 16px)) 8px; scroll-padding-inline: max(16px, calc((100% - 1100px) / 2 + 16px));
   }
-  dl {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 0.25rem 1rem;
-  }
-  dt {
-    font-weight: 600;
-  }
-  dd {
-    margin: 0;
-  }
-  li p {
-    margin: 0 0 0.75rem;
-    color: #555;
-  }
+  .track::-webkit-scrollbar { display: none; }
 </style>
