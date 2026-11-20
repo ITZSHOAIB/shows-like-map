@@ -41,6 +41,7 @@ const { match, show, eager } = Astro.props;
 <style>
   .card { width: 140px; display: grid; gap: var(--space-1); align-content: start; }
   @media (min-width: 720px) { .card { width: 160px; } }
+  @media (min-width: 1280px) { .card { width: 184px; } }
   a.card .poster { transition: scale var(--slow) var(--ease), box-shadow var(--slow); box-shadow: var(--shadow-1); }
   a.card:hover .poster, a.card:focus-visible .poster { scale: 1.03; box-shadow: 0 0 0 2px var(--accent), 0 12px 28px rgb(0 0 0 / 0.45); }
   /* Keyboard focus rings the poster: a ring round the whole card would be clipped by the scrolling track. */

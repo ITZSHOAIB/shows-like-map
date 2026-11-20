@@ -54,8 +54,9 @@
   --pill-line: var(--line);
   --pill-on-bg: color-mix(in srgb, var(--accent) 18%, transparent);
 
-  /* Motion: one curve, two speeds. */
+  /* Motion: one curve, two speeds, and a spring that overshoots a little for the small rewards (Keep, the Kept count). */
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --fast: 0.15s;
   --slow: 0.3s;
 
@@ -126,6 +127,17 @@ h1, h2, h3 {
    the next hero. Browsers without cross-document view transitions just navigate. */
 @view-transition { navigation: auto; }
 ::view-transition-group(*) { animation-duration: var(--slow); animation-timing-function: var(--ease); }
+
+/* The page's own scrollbar: thin and quiet on the dark page, not the system's grey bar. Rows hide theirs (Rail.astro). */
+html { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.2) transparent; }
+
+/* Rows of cards rise in one after another as a page opens (and again as a filter brings cards back). */
+.rail > .track > li { animation: rise 0.5s var(--ease) both; animation-delay: calc(min(var(--i, 0), 8) * 40ms); }
+@keyframes rise { from { opacity: 0; translate: 0 14px; } }
+
+/* Things you press give a little under the finger. */
+:is(button.pill, a.pill, label.f-chip, .f-clear) { transition: scale var(--fast) var(--ease), border-color var(--fast), background-color var(--fast); }
+:is(button.pill, a.pill, label.f-chip):active { scale: 0.96; }
 
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }

@@ -37,6 +37,11 @@ import { STATUS_LABEL } from "../lib/catalogue";
   const share = $("k-share") as HTMLButtonElement, all = $("k-all") as HTMLButtonElement, mine = $("k-mine");
 
   let bySlug = new Map<string, Entry>();
+  let rank = new Map<string, number>(); // each show's place in the index: a name for its tile's slide (view transitions)
+  const still = matchMedia("(prefers-reduced-motion: reduce)");
+  /** A change to the list, with the tiles sliding to their new places where the browser can. */
+  const slide = (change: () => void) =>
+    document.startViewTransition && !still.matches ? document.startViewTransition(change).updateCallbackDone : (change(), Promise.resolve());
   let shared = fromShare(location.search); // null: your own list
 
   const plural = (n: number) => `${n} ${n === 1 ? "show" : "shows"}`;
@@ -64,6 +69,7 @@ import { STATUS_LABEL } from "../lib/catalogue";
   function item(slug: string, own: boolean) {
     const li = document.createElement("li");
     li.dataset.slug = slug;
+    li.style.viewTransitionName = `k${rank.get(slug)}`;
     li.append(tileOf(bySlug.get(slug)!, labels));
     if (!own) return li;
     const drop = Object.assign(document.createElement("button"), { type: "button", className: "k-drop", textContent: "Remove" });
@@ -72,11 +78,12 @@ import { STATUS_LABEL } from "../lib/catalogue";
       const next = ((li.nextElementSibling ?? li.previousElementSibling) as HTMLElement | null)?.dataset.slug;
       writeKept(toggled(readKept(), slug));
       dispatchEvent(new Event("slm:kept"));
-      render();
-      note.textContent = `Removed ${nameOf(slug)}. ${note.textContent}`.trim();
-      // Focus stays in the list: on the Remove of the show that took its place, else on the heading.
-      const at = next && tiles.querySelector<HTMLElement>(`li[data-slug="${CSS.escape(next)}"] .k-drop`);
-      (at || title).focus();
+      slide(render).then(() => {
+        note.textContent = `Removed ${nameOf(slug)}. ${note.textContent}`.trim();
+        // Focus stays in the list: on the Remove of the show that took its place, else on the heading.
+        const at = next && tiles.querySelector<HTMLElement>(`li[data-slug="${CSS.escape(next)}"] .k-drop`);
+        (at || title).focus();
+      });
     });
     li.append(drop);
     return li;
@@ -112,6 +119,7 @@ import { STATUS_LABEL } from "../lib/catalogue";
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((entries: Entry[]) => {
       bySlug = new Map(entries.map((e) => [e[0], e]));
+      rank = new Map(entries.map((e, i) => [e[0], i]));
       render();
     })
     .catch(() => (note.textContent = "Your list didn't load. Check your connection and reload."));
