@@ -12,6 +12,7 @@
     "preview": "astro preview",
     "typecheck": "astro sync && tsc --noEmit",
     "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.ts\"",
+    "a11y": "playwright test",
     "data": "node scripts/catalogue.ts",
     "matches:push": "node scripts/matches/store.ts push",
     "matches:pull": "node scripts/matches/store.ts pull",
@@ -24,6 +25,8 @@
     "astro": "7.4.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.65.1",
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2"
   }
