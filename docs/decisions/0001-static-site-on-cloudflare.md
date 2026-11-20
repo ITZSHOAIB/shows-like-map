@@ -18,5 +18,5 @@ The site must cost nothing to run and stay fast on mid-range Android phones. Eve
 
 - Hosting is free and traffic spikes cost nothing. Pages can be served from a CDN and prefetched for instant navigation.
 - The catalogue size is bounded by build time and Cloudflare's limit of 20,000 files per deploy (the 1,991-show catalogue is 1,993 files, 16 MB), which is comfortable up to roughly 10k shows.
-- The repo can stay private; going public is a separate choice.
+- The repo can stay private; going public is a separate choice. It went public on 2026-11-20, so visitors can report a problem or a takedown on GitHub Issues (the About page says so); hosting didn't change.
 - Anything personal (filters, the path you took) lives in the browser only.
