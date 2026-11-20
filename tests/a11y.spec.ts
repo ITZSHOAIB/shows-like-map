@@ -110,3 +110,13 @@ test("axe and no sideways scroll at 320px on the home page, with a time chosen a
   expect((await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
+
+test("axe and no sideways scroll at 320px with a filter on and the row further out showing", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/shows/game-of-thrones/");
+  await page.evaluate(() => sessionStorage.setItem("slm:filters", JSON.stringify({ finished: true, hours: 20 })));
+  await page.reload();
+  await expect(page.locator(".further")).toBeVisible();
+  expect((await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});

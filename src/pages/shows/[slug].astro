@@ -6,6 +6,7 @@ import Peek from "../../components/Peek.astro";
 import Base from "../../layouts/Base.astro";
 import { hours, loadCatalogue, STATUS_LABEL, type Show, type Status } from "../../lib/catalogue";
 import { filterAttrs, HOUR_LIMITS } from "../../lib/filters";
+import { furtherOut, type Further } from "../../lib/further";
 import { loadMatches, type Match } from "../../lib/matches";
 import { peekOf, type Peek as PeekData } from "../../lib/peek";
 import { descriptionOf, labelOf, structuredData, titleOf } from "../../lib/seo";
@@ -24,11 +25,11 @@ export function getStaticPaths() {
     const list = (matches.get(show.id) ?? []).map((m) => ({ match: m, show: byId.get(m.id) }));
     // What holding each linked match shows (decision 0007).
     const peek = Object.fromEntries(list.flatMap(({ match, show: s }) => (s ? [[s.slug, peekOf(show, match, s, linkedOf(s.id))]] : [])));
-    return { params: { slug: show.slug }, props: { show, matches: list, peek, repeated: count.get(show.name)! > 1 } };
+    return { params: { slug: show.slug }, props: { show, matches: list, peek, repeated: count.get(show.name)! > 1, further: furtherOut(show, list.map((l) => l.match), matches, byId) } };
   });
 }
 
-const { show, matches, peek, repeated } = Astro.props as { show: Show; matches: { match: Match; show?: Show }[]; peek: Record<string, PeekData>; repeated: boolean };
+const { show, matches, peek, repeated, further } = Astro.props as { show: Show; matches: { match: Match; show?: Show }[]; peek: Record<string, PeekData>; repeated: boolean; further: Further[] };
 const year = show.premiered?.slice(0, 4);
 const STATUS_ICON: Record<Status, string> = {
   running: "broadcast",
@@ -188,6 +189,16 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
             {linked && <p class="peek-hint wrap" id="peek-hint" hidden><Icon name="hand-tap" /> Hold a poster to peek</p>}
             {linked && <p class="sr-only" id="filters-status" aria-live="polite"></p>}
           </section>
+          {/* Shown only while a filter is on and this show's own matches run thin: the shows its matches lead to, filtered the same way. */}
+          {further.length > 0 && (
+            <section class="row further" aria-labelledby="further-title">
+              <h2 class="wrap"><Icon name="arrows-out" /> <span id="further-title">A step further out</span></h2>
+              <p class="wrap muted small f-note">Not on {show.name}'s list, but on the lists of the shows that are. Same filters.</p>
+              <ul class="track" role="list" aria-labelledby="further-title">
+                {further.map((f) => <li {...filterAttrs(f.show)}><MatchCard match={{ ...f.match, why: `Via ${f.via}. ${f.match.why}` }} show={f.show} /></li>)}
+              </ul>
+            </section>
+          )}
         </div>
       ) : (
         <p class="wrap muted">No matches for this show yet.</p>
@@ -220,7 +231,8 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
     // Filters: CSS does the hiding. This counts what's left, saves the choice for the next show (in this tab only: a new visit starts with everything), and announces it.
     const form = document.querySelector<HTMLFormElement>("#filters");
     if (form) {
-      const items = [...document.querySelectorAll<HTMLElement>(".track li")];
+      const items = [...document.querySelectorAll<HTMLElement>(".row:not(.further) .track li")];
+      const rows = document.querySelector<HTMLElement>(".rows")!;
       const count = document.getElementById("matches-count")!;
       const status = document.getElementById("filters-status")!;
       const update = (announce: boolean) => {
@@ -228,6 +240,8 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
         const hours = (form.elements.namedItem("hours") as RadioNodeList).value || "0";
         const on = finished || hours !== "0";
         const shown = items.filter((li) => (!finished || "fin" in li.dataset) && (hours === "0" || `h${hours}` in li.dataset)).length;
+        // Enough left in the first row: no need to look further out.
+        rows.toggleAttribute("data-full", shown >= 6);
         count.textContent = on ? `Showing ${shown} of ${items.length}` : "";
         if (!announce) return;
         status.textContent = !on ? `Showing all ${items.length}` : shown ? `Showing ${shown} of ${items.length}` : "None match your filters";
@@ -366,6 +380,21 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
   .row:has(#f-fin:checked):has(#f-h20:checked):not(:has(li[data-fin][data-h20])),
   .row:has(#f-fin:checked):has(#f-h40:checked):not(:has(li[data-fin][data-h40])),
   .row:has(#f-fin:checked):has(#f-h80:checked):not(:has(li[data-fin][data-h80])) { --track: none; --empty: flex; }
+  /* "A step further out": only while a filter is on and the first row is thin (the script sets data-full when it isn't), and only its passing cards. */
+  .further { display: none; }
+  .rows:has(.filters input:checked):not([data-full]) .further { display: block; }
+  .rows:has(#f-fin:checked) .further li:not([data-fin]),
+  .rows:has(#f-h20:checked) .further li:not([data-h20]),
+  .rows:has(#f-h40:checked) .further li:not([data-h40]),
+  .rows:has(#f-h80:checked) .further li:not([data-h80]) { display: none; }
+  .rows:has(#f-fin:checked):not(:has(.further li[data-fin])) .further,
+  .rows:has(#f-h20:checked):not(:has(.further li[data-h20])) .further,
+  .rows:has(#f-h40:checked):not(:has(.further li[data-h40])) .further,
+  .rows:has(#f-h80:checked):not(:has(.further li[data-h80])) .further,
+  .rows:has(#f-fin:checked):has(#f-h20:checked):not(:has(.further li[data-fin][data-h20])) .further,
+  .rows:has(#f-fin:checked):has(#f-h40:checked):not(:has(.further li[data-fin][data-h40])) .further,
+  .rows:has(#f-fin:checked):has(#f-h80:checked):not(:has(.further li[data-fin][data-h80])) .further { display: none; }
+  .f-note { margin: calc(-1 * var(--space-2)) 0 var(--space-3); }
   .empty {
     display: var(--empty, none); align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); min-height: 120px;
     margin: 0; color: var(--muted);
