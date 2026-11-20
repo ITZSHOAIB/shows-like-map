@@ -58,7 +58,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
           path.forEach((s, i) => {
             const current = i === path.length - 1;
             const chip = document.createElement(current ? "span" : "a");
-            chip.className = "chip";
+            chip.className = "pill chip";
             if (current) chip.setAttribute("aria-current", "page");
             else chip.href = `/shows/${s.slug}/`;
             let morph = chip;
@@ -93,10 +93,10 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
         <p class="eyebrow">If you liked</p>
         <h1>{show.name}</h1>
         <ul class="facts">
-          <li class={`badge s-${show.status}`}><Icon name={STATUS_ICON[show.status]} /> {STATUS_LABEL[show.status]}</li>
-          {show.minutes !== null && <li><Icon name="hourglass-medium" /> {hours(show.minutes)} to finish</li>}
-          {show.platform && <li><Icon name="television" /> {show.platform}</li>}
-          {year && <li><Icon name="calendar-dots" /> {year}</li>}
+          <li class={`pill badge s-${show.status}`}><Icon name={STATUS_ICON[show.status]} /> {STATUS_LABEL[show.status]}</li>
+          {show.minutes !== null && <li class="pill"><Icon name="hourglass-medium" /> {hours(show.minutes)} to finish</li>}
+          {show.platform && <li class="pill"><Icon name="television" /> {show.platform}</li>}
+          {year && <li class="pill"><Icon name="calendar-dots" /> {year}</li>}
         </ul>
         <p class="muted small">
           {show.seasons} {show.seasons === 1 ? "season" : "seasons"} · {show.episodes} episodes{show.language && <> · {show.language}</>}
@@ -128,21 +128,23 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
       matches.length > 0 ? (
         <div class="rows">
           <section class="row">
-            <h2 class="wrap"><Icon name="sparkle" /> <span id="matches-title">Shows like {show.name}</span> <small class="muted" id="matches-count"></small></h2>
+            <h2 class="wrap"><Icon name="sparkle" /> <span id="matches-title">Shows like {show.name}</span></h2>
             {/* Filters work without JavaScript: CSS hides the cards that don't pass, from each card's data attributes.
                 JavaScript adds the count, remembers the choice for the next show, and announces changes. Only shown
                 when some match has the details to filter on. */}
             {linked && (<>
               <form class="filters wrap" id="filters" aria-label="Filter shows" autocomplete="off">
-                <label class="f-chip"><input type="checkbox" name="finished" id="f-fin" /><Icon name="check-circle" /> Finished</label>
-                <fieldset>
-                  <legend class="sr-only">Hours to finish</legend>
-                  <Icon name="hourglass-medium" />
-                  <label class="f-chip"><input type="radio" name="hours" value="0" checked />Any<span class="sr-only"> length</span></label>
+                <label class="pill f-chip"><input type="checkbox" name="finished" id="f-fin" /><Icon name="check-circle" /> Finished</label>
+                {/* Hours: every limit in view, one tap each. None chosen means any length; tapping the chosen one
+                    again turns it off. Each reads "Under 20 h" to a screen reader; "Under" is shown once, before them. */}
+                <div class="f-hours" role="radiogroup" aria-label="Hours to finish">
+                  <span class="f-under" aria-hidden="true"><Icon name="hourglass-medium" /> Under</span>
                   {HOUR_LIMITS.map((h) => (
-                    <label class="f-chip"><input type="radio" name="hours" value={h} id={`f-h${h}`} /><span aria-hidden="true">&lt;&thinsp;</span><span class="sr-only">Under </span>{h}&nbsp;h</label>
+                    <label class="pill f-chip"><input type="radio" name="hours" value={h} id={`f-h${h}`} /><span class="sr-only">Under </span>{h} h</label>
                   ))}
-                </fieldset>
+                </div>
+                {/* While a filter is on: what's left and the way back, on a line of their own under the chips. */}
+                <p class="f-result"><span id="matches-count"></span><button type="reset" class="f-clear">Clear</button></p>
               </form>
               {/* Before the cards are parsed, so a saved filter never flashes the whole row first. */}
               <script is:inline define:vars={{ limits: HOUR_LIMITS }}>
@@ -151,7 +153,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
                   let saved = {};
                   try { saved = JSON.parse(localStorage.getItem("slm:filters") || "{}"); } catch {}
                   form.finished.checked = saved.finished === true;
-                  form.hours.value = limits.includes(saved.hours) ? String(saved.hours) : "0";
+                  for (const r of form.hours) r.checked = limits.includes(saved.hours) && r.value === String(saved.hours);
                 }
                 restoreFilters();
                 // A page restored by Back shows the filters it was left with; bring it up to date.
@@ -159,7 +161,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
               </script>
               <p class="empty wrap">
                 None match your filters.
-                <button type="reset" form="filters" class="f-chip">Clear filters</button>
+                <button type="reset" form="filters" class="pill f-chip">Clear filters</button>
               </p>
             </>)}
             {/* role="list" because Safari drops list semantics under list-style: none. With no links to tab through,
@@ -205,18 +207,30 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
       const status = document.getElementById("filters-status")!;
       const update = (announce: boolean) => {
         const finished = (form.elements.namedItem("finished") as HTMLInputElement).checked;
-        const hours = (form.elements.namedItem("hours") as RadioNodeList).value;
+        const hours = (form.elements.namedItem("hours") as RadioNodeList).value || "0";
         const on = finished || hours !== "0";
         const shown = items.filter((li) => (!finished || "fin" in li.dataset) && (hours === "0" || `h${hours}` in li.dataset)).length;
-        count.textContent = on ? `· ${shown} of ${items.length}` : "";
+        count.textContent = on ? `Showing ${shown} of ${items.length}` : "";
         if (!announce) return;
         status.textContent = !on ? `Showing all ${items.length}` : shown ? `Showing ${shown} of ${items.length}` : "None match your filters";
         try { localStorage.setItem("slm:filters", JSON.stringify({ finished, hours: Number(hours) })); } catch {}
       };
       form.addEventListener("change", () => update(true));
-      // "reset" fires before the form resets. Clear filters hides itself, so focus moves to the first filter.
+      // Tapping the chosen hours again turns it off, as filter chips do. A radio can't do that itself, so note whether
+      // it was on when the finger came down. (Keyboard users have Clear; Space on a chosen radio leaves it chosen.)
+      let wasOn = false;
+      form.addEventListener("pointerdown", (e) => (wasOn = (e.target as Element).matches("[name=hours]:checked")));
+      form.addEventListener("click", (e) => {
+        const radio = e.target as HTMLInputElement;
+        if (wasOn && radio.name === "hours") {
+          radio.checked = false;
+          form.dispatchEvent(new Event("change"));
+        }
+        wasOn = false;
+      });
+      // "reset" fires before the form resets. Both Clear buttons hide themselves, so focus moves to the first filter.
       form.addEventListener("reset", () => {
-        const fromClear = document.activeElement?.matches(".empty button");
+        const fromClear = document.activeElement?.matches(".empty button, .f-clear");
         setTimeout(() => {
           if (fromClear) form.querySelector("input")!.focus();
           update(true);
@@ -234,7 +248,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
 </Base>
 
 <style>
-  .small { font-size: 13px; }
+  .small { font-size: var(--text-sm); }
   .hero { position: relative; isolation: isolate; overflow: hidden; margin-top: -56px; padding-top: 64px; }
   .backdrop {
     position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover;
@@ -244,36 +258,32 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   }
   /* Forced colours (Windows High Contrast) recolour text but not images, so the blurred poster would sit behind it. */
   @media (forced-colors: active) { .backdrop { display: none; } }
-  .h-poster { box-shadow: 0 20px 50px rgb(0 0 0 / 0.55); view-transition-name: hero-poster; }
-  .hero-in { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px 16px; align-items: end; padding-top: 8px; padding-bottom: 24px; }
-  @media (min-width: 720px) { .hero-in { grid-template-columns: 210px minmax(0, 1fr); gap: 16px 28px; } }
+  .h-poster { box-shadow: var(--shadow-2); view-transition-name: hero-poster; }
+  .hero-in {
+    display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-3) var(--space-4); align-items: end;
+    padding-top: var(--space-2); padding-bottom: var(--space-6);
+  }
+  @media (min-width: 720px) { .hero-in { grid-template-columns: 210px minmax(0, 1fr); gap: var(--space-4) var(--space-8); } }
 
   .trail {
-    display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-top: 6px; padding-bottom: 6px;
-    scroll-padding-inline: 16px; /* a chip focused by keyboard scrolls fully into view, ring included */
+    display: flex; align-items: center; gap: var(--space-2); overflow-x: auto; scrollbar-width: none;
+    padding-top: 6px; padding-bottom: 6px;
+    scroll-padding-inline: var(--gutter); /* a chip focused by keyboard scrolls fully into view, ring included */
   }
   .trail::-webkit-scrollbar { display: none; }
   .trail[hidden] { display: none; }
-  .trail :global(.trail-label) { flex: none; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+  .trail :global(.trail-label) { flex: none; font: 700 var(--text-xs)/1 var(--font-label); text-transform: uppercase; letter-spacing: var(--eyebrow-tracking); }
   .trail :global(ol) { display: flex; align-items: center; list-style: none; margin: 0; padding: 0; }
   .trail :global(li) { display: flex; align-items: center; flex: none; }
-  .trail :global(li + li)::before { content: ""; width: 12px; height: 2px; background: var(--line); }
-  .trail :global(.chip) {
-    display: inline-flex; align-items: center; gap: 6px; min-height: 28px; max-width: 150px; padding: 2px 10px 2px 2px;
-    border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 12.5px;
-  }
-  .trail :global(.chip span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .trail :global(.chip img) { width: 20px; height: 30px; flex: none; border-radius: 999px 4px 4px 999px; object-fit: cover; }
+  .trail :global(li + li)::before { content: ""; width: var(--space-3); height: 2px; background: var(--line); }
+  .trail :global(.chip) { max-width: 150px; padding-left: 2px; font-weight: 500; }
+  .trail :global(.chip span) { overflow: hidden; text-overflow: ellipsis; }
+  .trail :global(.chip img) { width: 20px; height: 30px; flex: none; border-radius: 4px; object-fit: cover; }
   .trail :global(a.chip:hover) { border-color: var(--accent); }
-  .trail :global(.chip[aria-current]) { border-color: color-mix(in srgb, var(--accent) 60%, transparent); font-weight: 600; }
-  .eyebrow { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; color: var(--accent); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; }
-  h1 { font-size: clamp(28px, 6.5vw, 56px); line-height: 1.02; font-weight: 800; }
-  .facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 8px; padding: 0; }
-  .facts li {
-    display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px;
-    background: var(--surface); border: 1px solid var(--line); font-size: 13px; white-space: nowrap;
-  }
-  .facts .badge { border-color: color-mix(in srgb, var(--s) 45%, transparent); background: color-mix(in srgb, var(--s) 12%, transparent); }
+  .trail :global(.chip[aria-current]) { border-color: color-mix(in srgb, var(--accent) 60%, transparent); font-weight: 700; }
+  .eyebrow { margin-bottom: var(--space-1); }
+  h1 { font-size: var(--text-xl); line-height: 1.02; }
+  .facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-3) 0 var(--space-2); padding: 0; }
   .h-text { min-width: 0; overflow-wrap: anywhere; }
   .h-text .muted { margin: 0; }
   .about { grid-column: 1 / -1; min-width: 0; max-width: 65ch; }
@@ -285,60 +295,59 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
      supported, and simply snaps open elsewhere), then the people fade in. */
   .about { interpolate-size: allow-keywords; }
   .summary {
-    display: block; height: calc(3 * 1.45em); overflow: hidden; transition: height 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+    display: block; height: calc(3 * 1.45em); overflow: hidden; transition: height var(--slow) var(--ease);
     mask-image: linear-gradient(to bottom, #000 45%, transparent);
   }
   .about:has(details[open]) .summary { height: auto; mask-image: none; }
   /* At least 24px tall, the WCAG 2.2 minimum target. */
   .toggle {
-    display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding-right: 4px;
-    color: var(--accent); font-size: 13px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--pill-height); padding-right: var(--space-1);
+    color: var(--accent); font: var(--label-weight) var(--text-sm) var(--font-label);
   }
-  .toggle :global(.icon) { transition: rotate 0.3s; }
+  .toggle :global(.icon) { transition: rotate var(--slow); }
   details[open] .toggle :global(.icon) { rotate: 180deg; }
   .less, details[open] .more { display: none; }
   details[open] .less { display: inline; }
-  details[open] .people { animation: fade-in 0.35s 0.1s both; }
+  details[open] .people { animation: fade-in var(--slow) 0.1s both; }
   @keyframes fade-in { from { opacity: 0; translate: 0 -4px; } }
-  .people { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 6px 0 0; }
+  .people { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px var(--space-3); margin: 6px 0 0; }
   .people dt { color: var(--muted); }
   .people dd { margin: 0; }
 
-  .rows { display: grid; gap: 28px; }
+  .rows { display: grid; gap: var(--space-8); }
   .row { min-width: 0; } /* a grid item grows to fit its track of cards otherwise, widening the page */
-  .row h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 20px; margin-bottom: 12px; }
+  .row h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-2); font-size: var(--text-lg); margin-bottom: var(--space-3); }
   .row h2 :global(.icon) { color: var(--accent); align-self: center; }
-  .row h2 small { font: 500 12.5px var(--font-body); }
-  .filters, .filters fieldset { display: flex; flex-wrap: wrap; gap: 6px; }
-  .filters { margin-bottom: 4px; }
-  .filters { column-gap: 10px; }
-  /* Hours are one choice, so one joined control: an hourglass (as on the cards' hours) then the segments. */
-  .filters fieldset { flex-wrap: nowrap; align-items: center; gap: 0; border: 0; margin: 0; padding: 0; min-width: 0; }
-  .filters fieldset > :global(.icon) { margin-right: 6px; color: var(--muted); }
-  fieldset .f-chip { margin-left: -1px; padding-inline: 9px; border-radius: 0; }
-  fieldset .f-chip:first-of-type { margin-left: 0; border-radius: 999px 0 0 999px; }
-  fieldset .f-chip:last-of-type { border-radius: 0 999px 999px 0; }
-  fieldset .f-chip:has(input:checked) { z-index: 1; }
-  fieldset .f-chip:has(input:focus-visible) { z-index: 2; }
-  /* Chips at least 24px tall (WCAG 2.2). The real checkbox or radio covers its chip, invisible, so it takes the tap
-     and the keyboard focus; the chip shows the ring. On, a chip is filled and bold, not just a different colour. */
-  .f-chip {
-    position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 12px;
-    border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text);
-    font: 500 13px var(--font-body); cursor: pointer;
-  }
+  /* Filters: a row of chips, as in the filter bars of phone apps. Off is an outline; on is solid gold with dark text,
+     so the state shows in fill and weight, not colour alone. 32px tall, over the 24px WCAG 2.2 minimum. */
+  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
+  .f-chip { min-height: 32px; font-weight: 500; cursor: pointer; }
+  .f-chip :global(.icon) { color: var(--muted); }
+  /* The checkbox covers its chip, invisible, so it takes the tap and the keyboard focus; the chip shows the ring. */
   .f-chip input { appearance: none; position: absolute; inset: 0; margin: 0; border-radius: inherit; cursor: pointer; }
   .f-chip input:focus-visible { outline: none; }
-  .f-chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .f-chip:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 700; }
-  .f-chip :global(.icon) { color: var(--accent); }
-  .f-chip:not(:has(input:checked)) :global(.icon) { color: var(--muted); }
+  .f-chip:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .f-chip:has(input:checked) { border-color: var(--accent); background: var(--accent); color: #17130a; font-weight: 700; }
+  .f-chip:has(input:checked) :global(.icon) { color: #17130a; }
+  /* Hours: a quiet "Under", then the limits as small chips of their own. */
+  .f-hours { display: flex; align-items: center; gap: 6px; }
+  .f-under { display: inline-flex; align-items: center; gap: var(--space-1); margin-right: 2px; color: var(--muted); font: 500 var(--text-sm) var(--font-label); }
+  .f-hours .f-chip { padding-inline: 10px; font-variant-numeric: var(--nums); }
+  /* Clear, only while a filter is on. */
+  .f-clear {
+    display: none; min-height: 24px; padding: 0 var(--space-1); border: 0; background: none; color: var(--accent);
+    font: 600 var(--text-sm) var(--font-label); cursor: pointer;
+  }
+  .f-result { display: none; flex-basis: 100%; align-items: center; gap: var(--space-2); margin: 0; color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--nums); }
+  .filters:has(input:checked) :is(.f-result, .f-clear) { display: flex; }
+  #matches-count:not(:empty)::after { content: "·"; margin-left: var(--space-2); }
+  .f-clear:hover { text-decoration: underline; text-underline-offset: 3px; }
   /* Forced colours drop the fill, so "on" chips take the system highlight. That keeps their own colours, ring included,
      so the ring takes the system text colour: the accent would vanish on a light high-contrast theme. */
   @media (forced-colors: active) {
     .f-chip:has(input:checked) { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
     .f-chip:has(input:checked) :global(.icon) { color: HighlightText; }
-    .f-chip:has(input:focus-visible) { outline-color: CanvasText; }
+    .f-chip:has(:focus-visible) { outline-color: CanvasText; }
   }
 
   /* Cards hide when they don't pass a filter that's on (attributes from src/lib/filters.ts, one rule per hour limit). */
@@ -354,12 +363,17 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .row:has(#f-fin:checked):has(#f-h20:checked):not(:has(li[data-fin][data-h20])),
   .row:has(#f-fin:checked):has(#f-h40:checked):not(:has(li[data-fin][data-h40])),
   .row:has(#f-fin:checked):has(#f-h80:checked):not(:has(li[data-fin][data-h80])) { --track: none; --empty: flex; }
-  .empty { display: var(--empty, none); align-items: center; flex-wrap: wrap; gap: 8px 12px; min-height: 120px; margin: 0; color: var(--muted); }
+  .empty {
+    display: var(--empty, none); align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); min-height: 120px;
+    margin: 0; color: var(--muted);
+  }
 
   .track {
-    display: var(--track, flex); gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; list-style: none; margin: 0;
+    display: var(--track, flex); gap: var(--space-4); overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+    list-style: none; margin: 0;
     /* 10px on top leaves room for the focused card's ring, which the scroller would otherwise clip. */
-    padding: 10px max(16px, calc((100% - 1100px) / 2 + 16px)) 8px; scroll-padding-inline: max(16px, calc((100% - 1100px) / 2 + 16px));
+    padding: 10px max(var(--gutter), calc((100% - 1100px) / 2 + var(--gutter))) var(--space-2);
+    scroll-padding-inline: max(var(--gutter), calc((100% - 1100px) / 2 + var(--gutter)));
   }
   .track::-webkit-scrollbar { display: none; }
   .track li { flex: none; display: flex; scroll-snap-align: start; }

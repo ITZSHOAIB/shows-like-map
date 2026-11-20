@@ -39,10 +39,10 @@ const { title, description, path } = Astro.props;
 
 <style>
   .top { position: relative; z-index: 1; display: flex; align-items: center; height: 56px; }
-  .brand { display: inline-flex; align-items: center; gap: 6px; font: 800 18px var(--font-display); letter-spacing: -0.02em; }
+  .brand { display: inline-flex; align-items: center; gap: 6px; font: var(--display-weight) var(--text-lg) var(--font-display); letter-spacing: var(--display-tracking); text-transform: var(--display-case); }
   .brand :global(.icon) { color: var(--accent); width: 24px; height: 24px; }
   .brand span { color: var(--accent); }
-  .foot { padding-top: 40px; padding-bottom: 32px; font-size: 12.5px; }
-  .foot :global(p) { margin: 4px 0; }
+  .foot { padding-top: var(--space-8); padding-bottom: var(--space-8); font-size: var(--text-xs); }
+  .foot :global(p) { margin: var(--space-1) 0; }
   .foot :global(a) { text-decoration: underline; text-underline-offset: 2px; }
 </style>
