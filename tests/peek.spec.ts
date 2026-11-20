@@ -130,3 +130,89 @@ test.describe("on a touch screen", () => {
     await expect(page).toHaveURL(/the-sopranos/);
   });
 });
+
+// Sideways drag (decision 0012): right keeps the show, left closes the peek; Keep is a button too.
+const keptList = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem("slm:kept") ?? "[]") as string[]);
+
+test("Keep in the peek keeps the show and says so; on a kept show it takes it off and stays open", async ({ page }) => {
+  await page.goto("/shows/breaking-bad/");
+  await hold(page, "The Sopranos");
+  const keep = peek(page).getByRole("button", { name: "Keep" });
+  await expect(keep).toHaveAttribute("aria-pressed", "false");
+  await keep.click();
+  await expect(peek(page)).toBeHidden();
+  expect(await keptList(page)).toEqual(["the-sopranos"]);
+  await expect(page.locator("#peek-status")).toHaveText("Kept The Sopranos.");
+
+  await hold(page, "The Sopranos");
+  const kept = peek(page).getByRole("button", { name: "Kept" });
+  await expect(kept).toHaveAttribute("aria-pressed", "true");
+  await kept.click();
+  await expect(peek(page)).toBeVisible();
+  await expect(peek(page).getByRole("button", { name: "Keep" })).toHaveAttribute("aria-pressed", "false");
+  expect(await keptList(page)).toEqual([]);
+});
+
+test("nothing in the peek can be selected, so a long press can't take the drag over", async ({ page }) => {
+  await page.goto("/shows/breaking-bad/");
+  await hold(page, "The Sopranos");
+  const select = await peek(page).locator(".pk-why").evaluate((e) => getComputedStyle(e).userSelect || getComputedStyle(e).webkitUserSelect);
+  expect(select).toBe("none");
+});
+
+test.describe("dragging the peek sideways", () => {
+  test.use({ hasTouch: true, isMobile: true });
+
+  /** A finger: down at (x, y), held `waitMs`, then moved by (dx, dy) in steps, and lifted. */
+  async function fingerDrag(page: Page, x: number, y: number, dx: number, dy: number, waitMs = 0) {
+    const cdp = await page.context().newCDPSession(page);
+    const at = (fx: number, fy: number) => [{ x: x + fx, y: y + fy }];
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(0, 0) });
+    if (waitMs) await page.waitForTimeout(waitMs);
+    for (let i = 1; i <= 10; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at((dx * i) / 10, (dy * i) / 10) });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  }
+  async function posterMiddle(page: Page, name: string) {
+    await card(page, name).scrollIntoViewIfNeeded();
+    const b = (await card(page, name).locator(".poster").boundingBox())!;
+    return [b.x + b.width / 2, b.y + b.height / 2] as const;
+  }
+  const rowScroll = (page: Page) => page.locator(".row:not(.further) .track").evaluate((t) => t.scrollLeft);
+
+  test("hold and drag right keeps the show, without scrolling the row under it", async ({ page }) => {
+    await page.goto("/shows/breaking-bad/");
+    const before = await rowScroll(page);
+    const [x, y] = await posterMiddle(page, "The Sopranos");
+    await fingerDrag(page, x, y, 140, 0, 600);
+    await expect(peek(page)).toBeHidden();
+    expect(await keptList(page)).toEqual(["the-sopranos"]);
+    expect(await rowScroll(page)).toBe(before);
+    await expect(page).toHaveURL(/breaking-bad/);
+  });
+
+  test("hold and drag left closes it without keeping", async ({ page }) => {
+    await page.goto("/shows/breaking-bad/");
+    const [x, y] = await posterMiddle(page, "The Sopranos");
+    await fingerDrag(page, x, y, -140, 0, 600);
+    await expect(peek(page)).toBeHidden();
+    expect(await keptList(page)).toEqual([]);
+  });
+
+  test("let go short of the line and it stays; a fresh sideways drag on it still keeps, an up-down one scrolls", async ({ page }) => {
+    await page.goto("/shows/breaking-bad/");
+    const [x, y] = await posterMiddle(page, "The Sopranos");
+    await fingerDrag(page, x, y, 30, 0, 600);
+    await page.waitForTimeout(600);
+    await expect(peek(page)).toBeVisible();
+    expect(await peek(page).evaluate((d) => d.style.translate)).toBe("");
+
+    const b = (await peek(page).locator(".pk-why").boundingBox())!;
+    await fingerDrag(page, b.x + 40, b.y + b.height / 2, 0, -120);
+    await page.waitForTimeout(400);
+    await expect(peek(page)).toBeVisible();
+    await fingerDrag(page, b.x + 40, b.y + b.height / 2, 150, 8);
+    await expect(peek(page)).toBeHidden();
+    expect(await keptList(page)).toEqual(["the-sopranos"]);
+    await expect(page).toHaveURL(/breaking-bad/);
+  });
+});

@@ -1,6 +1,6 @@
 # 7. Hold a poster to peek
 
-- **Status:** accepted, 2026-11-20
+- **Status:** accepted, 2026-11-20; extended by [0012](0012-swipe-the-peek.md) (drag the peek sideways to keep or close)
 - **Deciders:** Sohab Sk
 
 ## Context
