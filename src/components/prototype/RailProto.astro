@@ -1,0 +1,229 @@
+---
+// PROTOTYPE (rail-prototype branch, throwaway): four desktop takes on the sideways rows, switched with ?r= and the bar at
+// the bottom. now = PR #36 (arrows paging by whole cards). grid = no sideways scrolling: rows wrap. paddles = Netflix:
+// tall edge paddles and a page indicator. drag = grab and fling with the mouse, plus a scrubber. list = the show page's
+// matches as a ranked list. Phones are unchanged in every variant (below 720px).
+const VARIANTS = [
+  ["now", "Now (#36)"],
+  ["grid", "Grid"],
+  ["paddles", "Paddles"],
+  ["drag", "Drag"],
+  ["list", "Ranked list"],
+] as const;
+---
+
+<nav class="rp-bar" aria-label="Prototype: row layouts">
+  <span class="rp-tag">Prototype</span>
+  {VARIANTS.map(([v, label]) => <a class="rp-opt" data-v={v} href={`?r=${v}`}>{label}</a>)}
+</nav>
+
+<script>
+  const r = document.documentElement.dataset.rv ?? "now";
+  for (const a of document.querySelectorAll<HTMLAnchorElement>(".rp-opt")) {
+    if (a.dataset.v === r) a.setAttribute("aria-current", "true");
+  }
+  const desktop = matchMedia("(min-width: 720px)");
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- grid: home rows show one line, with "Show all" ----------
+  if (r === "grid" || r === "list") {
+    for (const section of document.querySelectorAll<HTMLElement>(".fit")) {
+      const track = section.querySelector<HTMLElement>(".track")!;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pill rp-more";
+      section.append(btn);
+      let open = false;
+      const fit = () => {
+        const items = [...track.children] as HTMLElement[];
+        if (!desktop.matches) { items.forEach((li) => (li.hidden = false)); btn.hidden = true; return; }
+        const cols = getComputedStyle(track).gridTemplateColumns.split(" ").length;
+        items.forEach((li, i) => (li.hidden = !open && i >= cols));
+        btn.hidden = items.length <= cols;
+        btn.textContent = open ? "Show fewer" : `Show all ${items.length}`;
+      };
+      btn.addEventListener("click", () => { open = !open; fit(); });
+      new ResizeObserver(fit).observe(track);
+      fit();
+    }
+  }
+
+  // ---------- paddles: a page indicator over each row ----------
+  if (r === "paddles") {
+    for (const rail of document.querySelectorAll<HTMLElement>(".rail")) {
+      const track = rail.querySelector<HTMLElement>(".track")!;
+      const dots = document.createElement("div");
+      dots.className = "rp-dots";
+      dots.setAttribute("aria-hidden", "true");
+      rail.append(dots);
+      const draw = () => {
+        const pad = parseFloat(getComputedStyle(track).paddingLeft);
+        const view = track.clientWidth - 2 * pad;
+        const max = track.scrollWidth - track.clientWidth;
+        const pages = max > 4 ? Math.ceil(max / view) + 1 : 0;
+        const at = max > 4 ? Math.round((track.scrollLeft / max) * (pages - 1)) : 0;
+        const poster = track.querySelector<HTMLElement>('li:not([hidden]) :is(.poster, .poster-ph)');
+        if (poster?.offsetHeight) rail.style.setProperty('--rail-ph', poster.offsetHeight + 'px');
+        if (dots.childElementCount !== pages) dots.replaceChildren(...Array.from({ length: pages }, () => document.createElement("i")));
+        [...dots.children].forEach((d, i) => d.classList.toggle("on", i === at));
+      };
+      track.addEventListener("scroll", () => requestAnimationFrame(draw), { passive: true });
+      new ResizeObserver(draw).observe(track);
+      document.addEventListener("change", () => setTimeout(draw));
+      draw();
+    }
+  }
+
+  // ---------- drag: grab and fling with the mouse, and a scrubber under the row ----------
+  if (r === "drag") {
+    for (const rail of document.querySelectorAll<HTMLElement>(".rail")) {
+      const track = rail.querySelector<HTMLElement>(".track")!;
+      // The scrubber: how much of the row is in view, and where. Drag the thumb, or click the bar to jump.
+      const bar = document.createElement("div");
+      bar.className = "rp-scrub";
+      bar.setAttribute("aria-hidden", "true");
+      const thumb = document.createElement("span");
+      bar.append(thumb);
+      rail.append(bar);
+      const draw = () => {
+        const max = track.scrollWidth - track.clientWidth;
+        bar.hidden = max <= 4;
+        const share = track.clientWidth / track.scrollWidth;
+        thumb.style.width = `${share * 100}%`;
+        thumb.style.left = `${max > 0 ? (track.scrollLeft / max) * (1 - share) * 100 : 0}%`;
+      };
+      track.addEventListener("scroll", () => requestAnimationFrame(draw), { passive: true });
+      new ResizeObserver(draw).observe(track);
+      document.addEventListener("change", () => setTimeout(draw));
+      draw();
+      bar.addEventListener("pointerdown", (e) => {
+        const b = bar.getBoundingClientRect();
+        const share = track.clientWidth / track.scrollWidth;
+        const toScroll = (x: number) => ((x - b.left) / b.width - share / 2) / (1 - share) * (track.scrollWidth - track.clientWidth);
+        track.style.scrollSnapType = "none";
+        track.scrollLeft = toScroll(e.clientX);
+        bar.setPointerCapture(e.pointerId);
+        const move = (m: PointerEvent) => (track.scrollLeft = toScroll(m.clientX));
+        const up = () => { bar.removeEventListener("pointermove", move); track.style.scrollSnapType = ""; };
+        bar.addEventListener("pointermove", move);
+        bar.addEventListener("pointerup", up, { once: true });
+      });
+
+      // Grab the row itself: it follows the mouse, and flings on with the speed you let go at.
+      let down: { x: number; left: number; t: number; v: number; moved: boolean } | null = null;
+      let fling = 0;
+      let swallow = false; // the release after a drag makes a click on a card; it goes nowhere
+      track.addEventListener('click', (c) => { if (swallow) { swallow = false; c.preventDefault(); c.stopPropagation(); } }, { capture: true });
+      track.addEventListener("pointerdown", (e) => {
+        if (e.pointerType !== "mouse" || e.button !== 0 || !desktop.matches) return;
+        cancelAnimationFrame(fling);
+        swallow = false;
+        down = { x: e.clientX, left: track.scrollLeft, t: performance.now(), v: 0, moved: false };
+      });
+      addEventListener("pointermove", (e) => {
+        if (!down) return;
+        const dx = e.clientX - down.x;
+        if (!down.moved && Math.abs(dx) < 6) return;
+        if (!down.moved) { down.moved = true; track.style.scrollSnapType = "none"; rail.classList.add("rp-grabbing"); }
+        const now = performance.now(), prev = track.scrollLeft;
+        track.scrollLeft = down.left - dx;
+        down.v = 0.8 * ((track.scrollLeft - prev) / Math.max(now - down.t, 1)) + 0.2 * down.v;
+        down.t = now;
+      });
+      addEventListener("pointerup", () => {
+        if (!down) return;
+        const { moved, v } = down;
+        down = null;
+        rail.classList.remove("rp-grabbing");
+        if (!moved) return;
+        swallow = true;
+        let speed = still ? 0 : v * 16; // px per frame
+        const step = () => {
+          speed *= 0.94;
+          track.scrollLeft += speed;
+          if (Math.abs(speed) > 0.5) fling = requestAnimationFrame(step);
+          else track.style.scrollSnapType = ""; // let snapping line the nearest card up
+        };
+        step();
+      });
+      track.addEventListener("dragstart", (e) => e.preventDefault());
+    }
+  }
+</script>
+
+<style is:global>
+  /* ---------- the switch bar ---------- */
+  .rp-bar {
+    position: fixed; z-index: 50; left: 50%; bottom: 12px; translate: -50% 0; display: flex; align-items: center; gap: 4px;
+    padding: 6px; border: 1px solid var(--pill-line); border-radius: 999px; background: rgb(7 8 12 / 0.88);
+    backdrop-filter: blur(12px); box-shadow: var(--shadow-2); font: 600 13px var(--font-label); max-width: calc(100vw - 16px); overflow-x: auto;
+  }
+  .rp-tag { padding: 0 8px; color: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .rp-opt { padding: 6px 12px; border-radius: 999px; color: var(--muted); white-space: nowrap; }
+  .rp-opt:hover { color: var(--text); }
+  .rp-opt[aria-current] { background: var(--accent); color: #17130a; }
+
+  @media (min-width: 720px) {
+    /* ---------- grid and list: no sideways scrolling, rows wrap ---------- */
+    html:is([data-rv="grid"], [data-rv="list"]) .rail > .track {
+      display: var(--track, grid); grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-6) var(--space-4);
+      overflow: visible; mask-image: none; scroll-snap-type: none;
+    }
+    html:is([data-rv="grid"], [data-rv="list"]) .rail > .track > li > * { width: 100%; }
+    html:is([data-rv="grid"], [data-rv="list"]) .rail-btn { display: none !important; }
+    html:is([data-rv="grid"], [data-rv="list"]) .rail > .track > li[hidden] { display: none; }
+    .rp-more { margin: var(--space-3) auto 0; display: flex; width: fit-content; min-height: 36px; padding: 0 var(--space-4); cursor: pointer; }
+    .rp-more:hover { border-color: var(--accent); }
+    .rp-more[hidden] { display: none; }
+    html:not([data-rv="grid"]):not([data-rv="list"]) .rp-more { display: none; }
+
+    /* ---------- list: the show page's matches, ranked, two across ---------- */
+    html[data-rv="list"] .row .rail > .track { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-8); counter-reset: rank; }
+    html[data-rv="list"] .row .track > li { counter-increment: rank; }
+    html[data-rv="list"] .row .track .card {
+      display: grid; grid-template-columns: 2.4em 108px minmax(0, 1fr); grid-template-rows: auto auto 1fr; column-gap: var(--space-4); row-gap: 4px;
+      align-items: start; padding: var(--space-3); border-radius: 12px; transition: background-color var(--fast);
+    }
+    html[data-rv="list"] .row .track .card::before {
+      content: counter(rank); grid-row: 1 / 4; align-self: center; font: 800 40px/1 var(--font-display); color: var(--muted); opacity: 0.5; text-align: right;
+    }
+    html[data-rv="list"] .row .track .card:hover { background: rgb(255 255 255 / 0.04); }
+    html[data-rv="list"] .row .track .card :is(.poster, .poster-ph) { grid-column: 2; grid-row: 1 / 4; width: 108px; margin: 0; }
+    html[data-rv="list"] .row .track .card :is(.c-title, .c-meta, .c-why) { grid-column: 3; }
+    html[data-rv="list"] .row .track .card .c-title { margin-top: 2px; font-size: var(--text-lg); }
+    html[data-rv="list"] .row .track .card .c-why { -webkit-line-clamp: 5; font-size: var(--text-md); margin-top: var(--space-1); }
+
+    /* ---------- paddles: Netflix's tall edges, and the page you're on ---------- */
+    html[data-rv="paddles"] .rail-btn {
+      top: 10px; translate: none; height: var(--rail-ph, 260px); width: max(52px, calc((100% - 1100px) / 2 - 4px));
+      border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; background: rgb(7 8 12 / 0.5);
+    }
+    html[data-rv="paddles"] .rail-btn.prev { left: 0; border-radius: 0 10px 10px 0; }
+    html[data-rv="paddles"] .rail-btn.next { right: 0; border-radius: 10px 0 0 10px; }
+    html[data-rv="paddles"] .rail-btn .icon { width: 34px; height: 34px; transition: scale var(--fast) var(--ease); }
+    html[data-rv="paddles"] .rail-btn:hover { background: rgb(7 8 12 / 0.75); }
+    html[data-rv="paddles"] .rail-btn:hover .icon { scale: 1.25; }
+    html[data-rv="paddles"] .rail[data-l] .prev, html[data-rv="paddles"] .rail[data-r] .next { opacity: 0; }
+    html[data-rv="paddles"] .rail:hover[data-l] .prev, html[data-rv="paddles"] .rail:hover[data-r] .next { opacity: 1; }
+    html[data-rv="paddles"] .rail { --rail-fade: 0px; }
+    .rp-dots { position: absolute; top: -26px; right: max(var(--gutter), calc((100% - 1100px) / 2 + var(--gutter))); display: flex; gap: 3px; opacity: 0; transition: opacity var(--slow); }
+    .rail:hover .rp-dots { opacity: 1; }
+    .rp-dots i { width: 14px; height: 3px; border-radius: 2px; background: rgb(255 255 255 / 0.25); }
+    .rp-dots i.on { background: var(--text); }
+
+    /* ---------- drag: a grab cursor, and the scrubber under the row ---------- */
+    html[data-rv="drag"] .rail-btn { display: none !important; }
+    html[data-rv="drag"] .rail > .track { cursor: grab; }
+    html[data-rv="drag"] .rail.rp-grabbing > .track { cursor: grabbing; user-select: none; }
+    html[data-rv="drag"] .rail.rp-grabbing a { pointer-events: none; }
+    .rp-scrub {
+      position: relative; height: 4px; margin: var(--space-2) max(var(--gutter), calc((100% - 1100px) / 2 + var(--gutter))) 0;
+      border-radius: 2px; background: rgb(255 255 255 / 0.1); cursor: pointer;
+    }
+    .rp-scrub::before { content: ""; position: absolute; inset: -8px 0; } /* a taller target than it looks */
+    .rp-scrub > span { position: absolute; top: 0; bottom: 0; border-radius: 2px; background: rgb(255 255 255 / 0.45); transition: background var(--fast); }
+    .rp-scrub:hover > span { background: var(--accent); }
+    .rp-scrub[hidden] { display: none; }
+  }
+  @media (max-width: 719px) { .rp-dots, .rp-scrub, .rp-more { display: none !important; } }
+</style>
