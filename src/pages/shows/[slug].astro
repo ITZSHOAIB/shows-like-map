@@ -4,6 +4,7 @@ import Icon from "../../components/Icon.astro";
 import MatchCard from "../../components/MatchCard.astro";
 import Base from "../../layouts/Base.astro";
 import { hours, loadCatalogue, STATUS_LABEL, type Show, type Status } from "../../lib/catalogue";
+import { filterAttrs, HOUR_LIMITS } from "../../lib/filters";
 import { loadMatches, type Match } from "../../lib/matches";
 
 export function getStaticPaths() {
@@ -127,12 +128,46 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
       matches.length > 0 ? (
         <div class="rows">
           <section class="row">
-            <h2 class="wrap" id="matches-title"><Icon name="sparkle" /> Shows like {show.name}</h2>
+            <h2 class="wrap"><Icon name="sparkle" /> <span id="matches-title">Shows like {show.name}</span> <small class="muted" id="matches-count"></small></h2>
+            {/* Filters work without JavaScript: CSS hides the cards that don't pass, from each card's data attributes.
+                JavaScript adds the count, remembers the choice for the next show, and announces changes. Only shown
+                when some match has the details to filter on. */}
+            {linked && (<>
+              <form class="filters wrap" id="filters" aria-label="Filter shows" autocomplete="off">
+                <label class="f-chip"><input type="checkbox" name="finished" id="f-fin" /><Icon name="check-circle" /> Finished</label>
+                <fieldset>
+                  <legend class="sr-only">Hours to finish</legend>
+                  <Icon name="hourglass-medium" />
+                  <label class="f-chip"><input type="radio" name="hours" value="0" checked />Any<span class="sr-only"> length</span></label>
+                  {HOUR_LIMITS.map((h) => (
+                    <label class="f-chip"><input type="radio" name="hours" value={h} id={`f-h${h}`} /><span aria-hidden="true">&lt;&thinsp;</span><span class="sr-only">Under </span>{h}&nbsp;h</label>
+                  ))}
+                </fieldset>
+              </form>
+              {/* Before the cards are parsed, so a saved filter never flashes the whole row first. */}
+              <script is:inline define:vars={{ limits: HOUR_LIMITS }}>
+                function restoreFilters() {
+                  const form = document.getElementById("filters");
+                  let saved = {};
+                  try { saved = JSON.parse(localStorage.getItem("slm:filters") || "{}"); } catch {}
+                  form.finished.checked = saved.finished === true;
+                  form.hours.value = limits.includes(saved.hours) ? String(saved.hours) : "0";
+                }
+                restoreFilters();
+                // A page restored by Back shows the filters it was left with; bring it up to date.
+                addEventListener("pageshow", (e) => e.persisted && restoreFilters());
+              </script>
+              <p class="empty wrap">
+                None match your filters.
+                <button type="reset" form="filters" class="f-chip">Clear filters</button>
+              </p>
+            </>)}
             {/* role="list" because Safari drops list semantics under list-style: none. With no links to tab through,
                 the track itself takes focus so keyboard users can still scroll it. */}
             <ul class="track" role="list" aria-labelledby="matches-title" tabindex={linked ? undefined : 0}>
-              {matches.map((m, i) => <li><MatchCard match={m.match} show={m.show} eager={i < 3} /></li>)}
+              {matches.map((m, i) => <li {...filterAttrs(m.show)}><MatchCard match={m.match} show={m.show} eager={i < 3} /></li>)}
             </ul>
+            {linked && <p class="sr-only" id="filters-status" aria-live="polite"></p>}
           </section>
         </div>
       ) : (
@@ -161,6 +196,35 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
     addEventListener("pageswap", (e) => {
       if (e.activation?.navigationType === "traverse") e.viewTransition?.skipTransition();
     });
+
+    // Filters: CSS does the hiding. This counts what's left, saves the choice for the next show, and announces it.
+    const form = document.querySelector<HTMLFormElement>("#filters");
+    if (form) {
+      const items = [...document.querySelectorAll<HTMLElement>(".track li")];
+      const count = document.getElementById("matches-count")!;
+      const status = document.getElementById("filters-status")!;
+      const update = (announce: boolean) => {
+        const finished = (form.elements.namedItem("finished") as HTMLInputElement).checked;
+        const hours = (form.elements.namedItem("hours") as RadioNodeList).value;
+        const on = finished || hours !== "0";
+        const shown = items.filter((li) => (!finished || "fin" in li.dataset) && (hours === "0" || `h${hours}` in li.dataset)).length;
+        count.textContent = on ? `· ${shown} of ${items.length}` : "";
+        if (!announce) return;
+        status.textContent = !on ? `Showing all ${items.length}` : shown ? `Showing ${shown} of ${items.length}` : "None match your filters";
+        try { localStorage.setItem("slm:filters", JSON.stringify({ finished, hours: Number(hours) })); } catch {}
+      };
+      form.addEventListener("change", () => update(true));
+      // "reset" fires before the form resets. Clear filters hides itself, so focus moves to the first filter.
+      form.addEventListener("reset", () => {
+        const fromClear = document.activeElement?.matches(".empty button");
+        setTimeout(() => {
+          if (fromClear) form.querySelector("input")!.focus();
+          update(true);
+        });
+      });
+      addEventListener("pageshow", (e) => e.persisted && update(false));
+      update(false);
+    }
   </script>
   <Fragment slot="credits">
     <p>
@@ -245,8 +309,49 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .row h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 20px; margin-bottom: 12px; }
   .row h2 :global(.icon) { color: var(--accent); align-self: center; }
   .row h2 small { font: 500 12.5px var(--font-body); }
+  .filters, .filters fieldset { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filters { margin-bottom: 4px; }
+  .filters { column-gap: 10px; }
+  /* Hours are one choice, so one joined control: an hourglass (as on the cards' hours) then the segments. */
+  .filters fieldset { flex-wrap: nowrap; align-items: center; gap: 0; border: 0; margin: 0; padding: 0; min-width: 0; }
+  .filters fieldset > :global(.icon) { margin-right: 6px; color: var(--muted); }
+  fieldset .f-chip { margin-left: -1px; padding-inline: 9px; border-radius: 0; }
+  fieldset .f-chip:first-of-type { margin-left: 0; border-radius: 999px 0 0 999px; }
+  fieldset .f-chip:last-of-type { border-radius: 0 999px 999px 0; }
+  fieldset .f-chip:has(input:checked) { z-index: 1; }
+  fieldset .f-chip:has(input:focus-visible) { z-index: 2; }
+  /* Chips at least 24px tall (WCAG 2.2). The real checkbox or radio covers its chip, invisible, so it takes the tap
+     and the keyboard focus; the chip shows the ring. On, a chip is filled and bold, not just a different colour. */
+  .f-chip {
+    position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 12px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text);
+    font: 500 13px var(--font-body); cursor: pointer;
+  }
+  .f-chip input { appearance: none; position: absolute; inset: 0; margin: 0; border-radius: inherit; cursor: pointer; }
+  .f-chip input:focus-visible { outline: none; }
+  .f-chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .f-chip:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 700; }
+  .f-chip :global(.icon) { color: var(--accent); }
+  .f-chip:not(:has(input:checked)) :global(.icon) { color: var(--muted); }
+  @media (forced-colors: active) { .f-chip:has(input:checked) { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; } .f-chip:has(input:checked) :global(.icon) { color: HighlightText; } }
+
+  /* Cards hide when they don't pass a filter that's on (attributes from src/lib/filters.ts, one rule per hour limit). */
+  .row:has(#f-fin:checked) .track li:not([data-fin]),
+  .row:has(#f-h20:checked) .track li:not([data-h20]),
+  .row:has(#f-h40:checked) .track li:not([data-h40]),
+  .row:has(#f-h80:checked) .track li:not([data-h80]) { display: none; }
+  /* A row with no card passing every filter that's on swaps its track for "None match" and a Clear button. */
+  .row:has(#f-fin:checked):not(:has(li[data-fin])),
+  .row:has(#f-h20:checked):not(:has(li[data-h20])),
+  .row:has(#f-h40:checked):not(:has(li[data-h40])),
+  .row:has(#f-h80:checked):not(:has(li[data-h80])),
+  .row:has(#f-fin:checked):has(#f-h20:checked):not(:has(li[data-fin][data-h20])),
+  .row:has(#f-fin:checked):has(#f-h40:checked):not(:has(li[data-fin][data-h40])),
+  .row:has(#f-fin:checked):has(#f-h80:checked):not(:has(li[data-fin][data-h80])) { --track: none; --empty: flex; }
+  .empty { display: var(--empty, none); align-items: center; flex-wrap: wrap; gap: 8px 12px; min-height: 120px; margin: 0; color: var(--muted); }
+
   .track {
-    display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; list-style: none; margin: 0;
+    display: var(--track, flex); gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; list-style: none; margin: 0;
     /* 10px on top leaves room for the focused card's ring, which the scroller would otherwise clip. */
     padding: 10px max(16px, calc((100% - 1100px) / 2 + 16px)) 8px; scroll-padding-inline: max(16px, calc((100% - 1100px) / 2 + 16px));
   }

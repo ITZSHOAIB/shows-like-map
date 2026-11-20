@@ -17,7 +17,7 @@ const TYPES: Record<string, string> = {
 
 const rules: [prefix: string, cacheControl: string][] = [];
 let prefix = "";
-for (const line of readFileSync(join(ROOT, "_headers"), "utf8").split("\n")) {
+for (const line of readFileSync(join(ROOT, "_headers"), "utf8").split(/\r?\n/)) { // CRLF in a Windows checkout
   if (/^\S/.test(line) && !line.startsWith("#")) prefix = line.trim().replace(/\*$/, "");
   const m = /^\s+Cache-Control:\s*(.+)$/i.exec(line);
   if (m && prefix) rules.push([prefix, m[1].trim()]);
