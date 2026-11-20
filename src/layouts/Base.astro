@@ -3,7 +3,6 @@
 import "@fontsource-variable/bricolage-grotesque";
 import "../styles/global.css";
 import Icon from "../components/Icon.astro";
-import DesignSwitcher from "../components/_DesignSwitcher.astro"; // PROTOTYPE
 
 interface Props {
   title: string;
@@ -25,7 +24,6 @@ const { title, description, path } = Astro.props;
     {description && <meta name="description" content={description} />}
     <link rel="canonical" href={new URL(path, Astro.site)} />
     <link rel="preconnect" href="https://static.tvmaze.com" />
-    <DesignSwitcher />
   </head>
   <body>
     <header class="top wrap">
