@@ -8,6 +8,7 @@ import { hours, loadCatalogue, STATUS_LABEL, type Show, type Status } from "../.
 import { filterAttrs, HOUR_LIMITS } from "../../lib/filters";
 import { loadMatches, type Match } from "../../lib/matches";
 import { peekOf, type Peek as PeekData } from "../../lib/peek";
+import { descriptionOf, labelOf, structuredData, titleOf } from "../../lib/seo";
 import { watchUrl } from "../../lib/watch";
 
 export function getStaticPaths() {
@@ -15,16 +16,19 @@ export function getStaticPaths() {
   const byId = new Map(catalogue.map((s) => [s.id, s]));
   // A match links to its own page when it has one; matches outside the catalogue show unlinked (decision in #2).
   const matches = loadMatches();
+  // A name two shows share gets its year in the title and description, so no two pages read alike in search results.
+  const count = new Map<string, number>();
+  for (const s of catalogue) count.set(s.name, (count.get(s.name) ?? 0) + 1);
   const linkedOf = (id: number) => (matches.get(id) ?? []).flatMap((m) => byId.get(m.id) ?? []);
   return catalogue.map((show) => {
     const list = (matches.get(show.id) ?? []).map((m) => ({ match: m, show: byId.get(m.id) }));
     // What holding each linked match shows (decision 0007).
     const peek = Object.fromEntries(list.flatMap(({ match, show: s }) => (s ? [[s.slug, peekOf(show, match, s, linkedOf(s.id))]] : [])));
-    return { params: { slug: show.slug }, props: { show, matches: list, peek } };
+    return { params: { slug: show.slug }, props: { show, matches: list, peek, repeated: count.get(show.name)! > 1 } };
   });
 }
 
-const { show, matches, peek } = Astro.props as { show: Show; matches: { match: Match; show?: Show }[]; peek: Record<string, PeekData> };
+const { show, matches, peek, repeated } = Astro.props as { show: Show; matches: { match: Match; show?: Show }[]; peek: Record<string, PeekData>; repeated: boolean };
 const year = show.premiered?.slice(0, 4);
 const STATUS_ICON: Record<Status, string> = {
   running: "broadcast",
@@ -34,10 +38,13 @@ const STATUS_ICON: Record<Status, string> = {
   upcoming: "calendar-dots",
 };
 const linked = matches.some((m) => m.show);
-const description = `Shows like ${show.name}, each with why it's similar, whether it ended, and how many hours it takes to finish.`;
+const label = labelOf(show, repeated);
+const description = descriptionOf(label, matches.map((m) => m.match.name));
+const path = `/shows/${show.slug}/`;
+const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/", Astro.site).href);
 ---
 
-<Base title={`Shows like ${show.name} | Shows Like Map`} {description} path={`/shows/${show.slug}/`}>
+<Base title={titleOf(label)} {description} {path} image={show.poster ?? undefined} {jsonLd}>
   <main>
     <section class="hero">
       {/* The poster, blurred and faded, as the backdrop: no extra download, and every show has one (TVmaze backgrounds are 0.5 MB originals). */}

@@ -3,13 +3,20 @@
 import "@fontsource-variable/bricolage-grotesque";
 import "../styles/global.css";
 import Icon from "../components/Icon.astro";
+import { scriptJson, SITE_NAME } from "../lib/seo";
 
 interface Props {
   title: string;
   description?: string | null;
   path: string; // canonical path, with a trailing slash
+  image?: string; // the link preview's picture: a path on this site or an absolute URL. Without one, the site's own card
+  largeImage?: boolean; // the picture is 1200x630, for the big card; a poster is small, so it gets the compact one
+  jsonLd?: unknown; // structured data for the page
 }
-const { title, description, path } = Astro.props;
+const { title, description, path, image, largeImage, jsonLd } = Astro.props;
+const url = new URL(path, Astro.site);
+const picture = new URL(image ?? "/og.png", Astro.site).href;
+const large = largeImage || !image;
 ---
 
 <!doctype html>
@@ -22,7 +29,16 @@ const { title, description, path } = Astro.props;
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
-    <link rel="canonical" href={new URL(path, Astro.site)} />
+    <link rel="canonical" href={url} />
+    {/* Link previews (Open Graph, and Twitter's card, which other apps read too). */}
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:url" content={url} />
+    <meta property="og:image" content={picture} />
+    <meta name="twitter:card" content={large ? "summary_large_image" : "summary"} />
+    {jsonLd !== undefined && <script type="application/ld+json" set:html={scriptJson(jsonLd)} />}
     <link rel="preconnect" href="https://static.tvmaze.com" />
   </head>
   <body>
