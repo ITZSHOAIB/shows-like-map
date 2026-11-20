@@ -135,14 +135,18 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
             {linked && (<>
               <form class="filters wrap" id="filters" aria-label="Filter shows" autocomplete="off">
                 <label class="pill f-chip"><input type="checkbox" name="finished" id="f-fin" /><Icon name="check-circle" /> Finished</label>
-                <fieldset>
-                  <legend class="sr-only">Hours to finish</legend>
+                {/* The phone's own picker for hours: a bottom sheet on Android, a wheel on iPhone. Each option has an
+                    id, so CSS can see which is chosen (#f-h20:checked) as it did with radios. */}
+                <span class="pill f-chip f-pick">
                   <Icon name="hourglass-medium" />
-                  <label class="pill f-chip"><input type="radio" name="hours" value="0" checked />Any<span class="sr-only"> length</span></label>
-                  {HOUR_LIMITS.map((h) => (
-                    <label class="pill f-chip"><input type="radio" name="hours" value={h} id={`f-h${h}`} /><span aria-hidden="true">&lt;&thinsp;</span><span class="sr-only">Under </span>{h}&nbsp;h</label>
-                  ))}
-                </fieldset>
+                  <label class="sr-only" for="f-hours">Hours to finish</label>
+                  <select name="hours" id="f-hours">
+                    <option value="0" selected>Any length</option>
+                    {HOUR_LIMITS.map((h) => <option value={h} id={`f-h${h}`}>Under {h} hours</option>)}
+                  </select>
+                  <Icon name="caret-down" />
+                </span>
+                <button type="reset" class="f-clear">Clear</button>
               </form>
               {/* Before the cards are parsed, so a saved filter never flashes the whole row first. */}
               <script is:inline define:vars={{ limits: HOUR_LIMITS }}>
@@ -205,7 +209,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
       const status = document.getElementById("filters-status")!;
       const update = (announce: boolean) => {
         const finished = (form.elements.namedItem("finished") as HTMLInputElement).checked;
-        const hours = (form.elements.namedItem("hours") as RadioNodeList).value;
+        const hours = (form.elements.namedItem("hours") as HTMLSelectElement).value;
         const on = finished || hours !== "0";
         const shown = items.filter((li) => (!finished || "fin" in li.dataset) && (hours === "0" || `h${hours}` in li.dataset)).length;
         count.textContent = on ? `· ${shown} of ${items.length}` : "";
@@ -214,9 +218,9 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
         try { localStorage.setItem("slm:filters", JSON.stringify({ finished, hours: Number(hours) })); } catch {}
       };
       form.addEventListener("change", () => update(true));
-      // "reset" fires before the form resets. Clear filters hides itself, so focus moves to the first filter.
+      // "reset" fires before the form resets. Both Clear buttons hide themselves, so focus moves to the first filter.
       form.addEventListener("reset", () => {
-        const fromClear = document.activeElement?.matches(".empty button");
+        const fromClear = document.activeElement?.matches(".empty button, .f-clear");
         setTimeout(() => {
           if (fromClear) form.querySelector("input")!.focus();
           update(true);
@@ -264,7 +268,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .trail :global(li + li)::before { content: ""; width: var(--space-3); height: 2px; background: var(--line); }
   .trail :global(.chip) { max-width: 150px; padding-left: 2px; font-weight: 500; }
   .trail :global(.chip span) { overflow: hidden; text-overflow: ellipsis; }
-  .trail :global(.chip img) { width: 20px; height: 30px; flex: none; border-radius: var(--radius-pill) 4px 4px var(--radius-pill); object-fit: cover; }
+  .trail :global(.chip img) { width: 20px; height: 30px; flex: none; border-radius: 4px; object-fit: cover; }
   .trail :global(a.chip:hover) { border-color: var(--accent); }
   .trail :global(.chip[aria-current]) { border-color: color-mix(in srgb, var(--accent) 60%, transparent); font-weight: 700; }
   .eyebrow { margin-bottom: var(--space-1); }
@@ -305,30 +309,42 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .row h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-2); font-size: var(--text-lg); margin-bottom: var(--space-3); }
   .row h2 :global(.icon) { color: var(--accent); align-self: center; }
   .row h2 small { font: 500 var(--text-sm) var(--font-body); letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
-  .filters, .filters fieldset { display: flex; flex-wrap: wrap; gap: 6px; }
-  .filters { column-gap: 10px; margin-bottom: var(--space-1); }
-  /* Hours are one choice, so one joined control: an hourglass (as on the cards' hours) then the segments. */
-  .filters fieldset { flex-wrap: nowrap; align-items: center; gap: 0; border: 0; margin: 0; padding: 0; min-width: 0; }
-  .filters fieldset > :global(.icon) { margin-right: 6px; color: var(--muted); }
-  fieldset .f-chip { margin-left: -1px; padding-inline: 9px; border-radius: 0; }
-  fieldset .f-chip:first-of-type { margin-left: 0; border-radius: var(--radius-pill) 0 0 var(--radius-pill); }
-  fieldset .f-chip:last-of-type { border-radius: 0 var(--radius-pill) var(--radius-pill) 0; }
-  fieldset .f-chip:has(input:checked) { z-index: 1; }
-  fieldset .f-chip:has(input:focus-visible) { z-index: 2; }
-  /* Filter pills are 32px tall, over the 24px WCAG 2.2 minimum. The real checkbox or radio covers its pill, invisible,
-     so it takes the tap and the keyboard focus; the pill shows the ring. */
+  /* Filters: a row of chips, as in the filter bars of phone apps. Off is an outline; on is solid gold with dark text,
+     so the state shows in fill and weight, not colour alone. 32px tall, over the 24px WCAG 2.2 minimum. */
+  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
   .f-chip { min-height: 32px; font-weight: 500; cursor: pointer; }
+  .f-chip :global(.icon) { color: var(--muted); }
+  /* The checkbox covers its chip, invisible, so it takes the tap and the keyboard focus; the chip shows the ring. */
   .f-chip input { appearance: none; position: absolute; inset: 0; margin: 0; border-radius: inherit; cursor: pointer; }
-  .f-chip input:focus-visible { outline: none; }
-  .f-chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .f-chip :global(.icon) { color: var(--accent); }
-  .f-chip:not(:has(input:checked)) :global(.icon) { color: var(--muted); }
+  .f-chip :is(input, select):focus-visible { outline: none; }
+  .f-chip:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .f-chip:is(:has(input:checked), :has(option[id]:checked)) {
+    border-color: var(--accent); background: var(--accent); color: #17130a; font-weight: 700;
+  }
+  .f-chip:is(:has(input:checked), :has(option[id]:checked)) :global(.icon) { color: #17130a; }
+  /* Hours: the native select is the chip, with the hourglass and caret drawn over it, so the phone's own picker opens. */
+  .f-pick { padding: 0; }
+  .f-pick select {
+    appearance: none; min-height: 32px; padding: 0 30px 0 32px; border: 0; border-radius: inherit; background: none;
+    color: inherit; font: inherit; cursor: pointer;
+  }
+  .f-pick option { background: var(--bg); color: var(--text); font-weight: 500; }
+  .f-pick > :global(.icon) { position: absolute; pointer-events: none; }
+  .f-pick > :global(.icon:first-child) { left: var(--space-3); }
+  .f-pick > :global(.icon:last-child) { right: 10px; width: 14px; height: 14px; }
+  /* Clear, only while a filter is on. */
+  .f-clear {
+    display: none; min-height: 32px; padding: 0 var(--space-2); border: 0; background: none; color: var(--accent);
+    font: 600 var(--text-sm) var(--font-label); cursor: pointer;
+  }
+  .filters:has(#f-fin:checked, option[id]:checked) .f-clear { display: inline-flex; align-items: center; }
+  .f-clear:hover { text-decoration: underline; text-underline-offset: 3px; }
   /* Forced colours drop the fill, so "on" chips take the system highlight. That keeps their own colours, ring included,
      so the ring takes the system text colour: the accent would vanish on a light high-contrast theme. */
   @media (forced-colors: active) {
-    .f-chip:has(input:checked) { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
-    .f-chip:has(input:checked) :global(.icon) { color: HighlightText; }
-    .f-chip:has(input:focus-visible) { outline-color: CanvasText; }
+    .f-chip:is(:has(input:checked), :has(option[id]:checked)) { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+    .f-chip:is(:has(input:checked), :has(option[id]:checked)) :global(.icon) { color: HighlightText; }
+    .f-chip:has(:focus-visible) { outline-color: CanvasText; }
   }
 
   /* Cards hide when they don't pass a filter that's on (attributes from src/lib/filters.ts, one rule per hour limit). */

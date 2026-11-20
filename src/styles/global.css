@@ -41,9 +41,10 @@
   --space-8: 32px;
   --gutter: 16px;
 
-  /* Shape and depth: one radius for pictures and cards, one for pills; two shadows. */
-  --radius-media: 10px;
-  --radius-pill: 999px;
+  /* Shape and depth: modest corners (rounder reads as playful, not premium), a touch tighter on small labels than
+     on pictures; two shadows. */
+  --radius-media: 8px;
+  --radius-pill: 6px;
   --shadow-1: 0 8px 20px rgb(0 0 0 / 0.35);
   --shadow-2: 0 20px 50px rgb(0 0 0 / 0.55);
 
@@ -58,8 +59,6 @@
   --fast: 0.15s;
   --slow: 0.3s;
 
-  /* Legacy names, kept while pages move over. */
-  --radius: 14px;
   color-scheme: dark;
 }
 
