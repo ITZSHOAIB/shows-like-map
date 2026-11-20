@@ -24,6 +24,7 @@ const year = show.premiered?.slice(0, 4);
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Shows like {show.name} | Shows Like Map</title>
+    <link rel="canonical" href={new URL(`/shows/${show.slug}/`, Astro.site)} />
     {show.summary && <meta name="description" content={show.summary} />}
   </head>
   <body>
@@ -52,7 +53,7 @@ const year = show.premiered?.slice(0, 4);
             <ol>
               {matches.map((m) => (
                 <li>
-                  {m.slug ? <a href={`/shows/${m.slug}`}>{m.name}</a> : <span>{m.name}</span>}
+                  {m.slug ? <a href={`/shows/${m.slug}/`}>{m.name}</a> : <span>{m.name}</span>}
                   {m.year && <span> ({m.year})</span>}
                   <p>{m.why}</p>
                 </li>
