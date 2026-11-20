@@ -18,7 +18,10 @@ const PICKS = [
 ];
 const key = (s: Show) => `${s.name}|${s.premiered?.slice(0, 4) ?? ""}`;
 const picks = PICKS.flatMap((k) => catalogue.find((s) => key(s) === k) ?? []);
-const grown = (s: Show) => !s.genres.includes("Children") && !s.genres.includes("Anime");
+// Kids' shows don't sell "one you'll finish" to grown-ups. TVmaze genres rarely say "Children", so their networks do;
+// the real build wants TVmaze's show type in the catalogue instead.
+const KIDS = /^(Disney|Nick|Cartoon Network|Boomerang|PBS Kids|CBBC|CBeebies|Treehouse|YTV|Discovery Family|Universal Kids)/;
+const grown = (s: Show) => !s.genres.some((g) => g === "Children" || g === "Family" || g === "Anime") && !KIDS.test(s.platform ?? "");
 const popularFinished = catalogue.filter((s) => isFinished(s) && grown(s) && s.minutes !== null);
 const wall = [...picks, ...popularFinished.filter((s) => !picks.includes(s))].slice(0, 48);
 const BUDGETS = [
