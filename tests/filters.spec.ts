@@ -6,19 +6,19 @@ import { expect, test, type Page } from "@playwright/test";
 const TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"];
 const cards = (page: Page) => page.locator(".track li:visible");
 const finished = (page: Page) => page.getByRole("checkbox", { name: "Finished" });
-const hours = (page: Page) => page.getByRole("combobox", { name: "Hours to finish" });
+const hours = (page: Page, h: number) => page.getByRole("radiogroup", { name: "Hours to finish" }).getByRole("radio", { name: `Under ${h} h` });
 
 test("filters hide what doesn't pass, count what's left, and Clear brings it all back", async ({ page }) => {
   await page.goto("/shows/breaking-bad/");
   await expect(cards(page)).toHaveCount(10);
 
   await finished(page).check();
-  await hours(page).selectOption("40");
+  await hours(page, 40).check();
   await expect(cards(page)).toHaveCount(1); // Narcos: ended, 26 hours
-  await expect(page.locator("#matches-count")).toHaveText("· 1 of 10");
+  await expect(page.locator("#matches-count")).toHaveText("Showing 1 of 10");
   await expect(page.locator("#filters-status")).toHaveText("Showing 1 of 10");
 
-  await hours(page).selectOption("20");
+  await hours(page, 20).check();
   await expect(cards(page)).toHaveCount(0);
   await expect(page.locator("#filters-status")).toHaveText("None match your filters");
   const clear = page.getByRole("button", { name: "Clear filters" });
@@ -31,15 +31,25 @@ test("filters hide what doesn't pass, count what's left, and Clear brings it all
 
 test("Clear in the filter bar shows only while a filter is on, and hands focus back", async ({ page }) => {
   await page.goto("/shows/breaking-bad/");
-  const clear = page.locator("#filters").getByRole("button", { name: "Clear" });
+  const clear = page.locator("#filters").getByRole("button", { name: "Clear", exact: true });
   await expect(clear).toBeHidden();
-  await hours(page).selectOption("80");
+  await hours(page, 80).check();
   await expect(clear).toBeVisible();
   await clear.focus();
   await page.keyboard.press("Enter");
-  await expect(hours(page)).toHaveValue("0");
+  await expect(hours(page, 80)).not.toBeChecked();
   await expect(clear).toBeHidden();
   await expect(finished(page)).toBeFocused();
+});
+
+test("tapping the chosen hours again turns it off", async ({ page }) => {
+  await page.goto("/shows/breaking-bad/");
+  await hours(page, 40).click();
+  await expect(cards(page)).toHaveCount(2);
+  await hours(page, 40).click();
+  await expect(hours(page, 40)).not.toBeChecked();
+  await expect(cards(page)).toHaveCount(10);
+  await expect(page.locator("#filters-status")).toHaveText("Showing all 10");
 });
 
 test("the filters work without JavaScript", async ({ browser }) => {
@@ -47,7 +57,7 @@ test("the filters work without JavaScript", async ({ browser }) => {
   await page.goto("/shows/breaking-bad/");
   await page.getByText("Finished", { exact: true }).click();
   await expect(cards(page)).toHaveCount(8);
-  await hours(page).selectOption("20");
+  await hours(page, 20).click();
   await expect(page.getByText("None match your filters.")).toBeVisible();
   await page.getByRole("button", { name: "Clear filters" }).click();
   await expect(cards(page)).toHaveCount(10);
@@ -73,21 +83,20 @@ test("the next show opens already filtered, from the first frame with cards", as
   const now = await cards(page).count();
   expect(now).toBeLessThan(await page.locator(".track li").count());
   expect(await page.evaluate(() => sessionStorage.getItem("first-frame"))).toBe(`${now}/10`);
-  await expect(page.locator("#matches-count")).toHaveText(`· ${now} of 10`);
+  await expect(page.locator("#matches-count")).toHaveText(`Showing ${now} of 10`);
 });
 
 test("filter controls have names, a group, and targets of at least 24px", async ({ page }) => {
   await page.goto("/shows/breaking-bad/");
   await expect(page.getByRole("form", { name: "Filter shows" })).toBeVisible();
-  await expect(hours(page).getByRole("option")).toHaveText(["Any length", "Under 20 hours", "Under 40 hours", "Under 80 hours"]);
-  await expect(hours(page)).toHaveValue("0");
+  for (const h of [20, 40, 80]) await expect(hours(page, h)).not.toBeChecked(); // none chosen: any length
   for (const chip of await page.locator(".f-chip").all()) {
     if (await chip.isVisible()) expect((await chip.boundingBox())!.height).toBeGreaterThanOrEqual(24);
   }
-  // The arrow keys change the hours, as in any select.
-  await hours(page).focus();
-  await page.keyboard.press("ArrowDown");
-  await expect(hours(page)).toHaveValue("20");
+  // The arrow keys move through the hours, as in any radio group.
+  await hours(page, 20).check();
+  await page.keyboard.press("ArrowRight");
+  await expect(hours(page, 40)).toBeChecked();
 });
 
 test("filtered and empty rows pass axe and fit 320px", async ({ page }) => {
@@ -95,7 +104,7 @@ test("filtered and empty rows pass axe and fit 320px", async ({ page }) => {
   await page.goto("/shows/breaking-bad/");
   await finished(page).check();
   expect((await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations).toEqual([]);
-  await hours(page).selectOption("20");
+  await hours(page, 20).check();
   await expect(page.getByText("None match your filters.")).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
@@ -112,9 +121,9 @@ test("an active filter stands out in forced colours", async ({ page }) => {
   await page.goto("/shows/breaking-bad/");
   await finished(page).check();
   const bg = (sel: string) => page.locator(sel).evaluate((el) => getComputedStyle(el).backgroundColor);
-  const on = await bg(".f-chip:has(#f-fin)"), off = await bg(".f-pick");
+  const on = await bg(".f-chip:has(#f-fin)"), off = await bg(".f-chip:has(#f-h20)");
   expect(on).not.toBe(off);
-  await expect(page.locator(".f-pick")).toHaveCSS("border-top-style", "solid");
+  await expect(page.locator(".f-chip:has(#f-h20)")).toHaveCSS("border-top-style", "solid");
   // An "on" chip keeps its own colours, ring included, so the ring must be a system colour: our yellow vanishes on white.
   await finished(page).blur();
   await page.keyboard.press("Tab");
