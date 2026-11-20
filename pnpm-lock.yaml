@@ -17,9 +17,6 @@ importers:
       astro:
         specifier: 7.4.0
         version: 7.4.0(@types/node@26.6.6)(yaml@2.9.1)
-      pure-web-bottom-sheet:
-        specifier: 1.1.1
-        version: 1.1.1
     devDependencies:
       '@axe-core/playwright':
         specifier: 4.14.0
@@ -1206,18 +1203,6 @@ packages:
 
   property-information@7.2.0:
     resolution: {integrity: sha512-IAtzIB6sUiWaJYrX9smp3V46pBGbBeLFRGdh25kg1334VcBlD8HzhPeNIWQH9zhGmo2itIe25EHt9dQP7G5hmg==}
-
-  pure-web-bottom-sheet@1.1.1:
-    resolution: {integrity: sha512-qSzgrvSp1bvJOFfeN2grzxovy+Ide61+dYd+n/SgV1Kvey8Y9We2yhSwqcOImGUly6MdWPGaTc3nctteA+O9Dw==}
-    engines: {node: '>=24.0.0', npm: '>=11.7.0'}
-    peerDependencies:
-      react: ^19.0.0
-      vue: ^3.0.0
-    peerDependenciesMeta:
-      react:
-        optional: true
-      vue:
-        optional: true
 
   radix3@1.1.2:
     resolution: {integrity: sha512-b484I/7b8rDEdSDKckSSBA8knMpcdsXudlE/LNL639wFoHKwLbEkQFZHWEYwDC0wa0FKUcCY+GAF73Z7wxNVFA==}
@@ -2544,8 +2529,6 @@ snapshots:
   process-ancestry@0.1.0: {}
 
   property-information@7.2.0: {}
-
-  pure-web-bottom-sheet@1.1.1: {}
 
   radix3@1.1.2: {}
 

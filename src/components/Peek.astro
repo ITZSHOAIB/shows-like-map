@@ -23,7 +23,8 @@ const { data, from } = Astro.props;
 
 <script>
   import type { Peek } from "../lib/peek";
-  import { registerSheetElements } from "pure-web-bottom-sheet";
+  // @ts-expect-error PROTOTYPE: pure-web-bottom-sheet 1.1.1 (MIT), vendored for the preview build
+  import { registerSheetElements } from "./prototype/vendor/index.client.js";
   import { readKept, toggled, writeKept } from "../lib/kept";
 
   const dialog = document.getElementById("peek") as HTMLDialogElement;
