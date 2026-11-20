@@ -8,7 +8,8 @@ export interface Peek {
   name: string;
   poster: string | null;
   facts: string[]; // status, hours to finish, year, network: the ones known
-  why: string; // why it's like the show whose page this is
+  why: string; // why it's like the show whose page this is, or, a step further out, like the match it came via
+  via?: string; // a step further out: the match of this page's show that leads to it
   summary: string | null;
   leads: PeekLead[]; // where it leads: its own top matches
 }
@@ -16,9 +17,13 @@ export interface Peek {
 /** How many of a match's own matches it shows: one row of small posters on a phone. */
 export const PEEK_LEADS = 4;
 
-/** The peek at `show`, a match of `here`. `next` is the show's own matches that have pages, best first. */
-export function peekOf(here: Show, match: Match, show: Show, next: Show[]): Peek {
+/**
+ * The peek at `show`, a match of `here`. `next` is the show's own matches that have pages, best first. A show a step
+ * further out passes `via`, the match of `here` that lists it, since `match.why` is about that one.
+ */
+export function peekOf(here: Show, match: Match, show: Show, next: Show[], via?: string): Peek {
   return {
+    ...(via && { via }),
     name: show.name,
     poster: show.poster,
     facts: [

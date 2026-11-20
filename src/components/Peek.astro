@@ -71,7 +71,7 @@ const { data, from } = Astro.props;
     title.id = "peek-title";
     const facts = el("ul", "pk-facts");
     facts.append(...s.facts.map((f) => el("li", "pill", f)));
-    text.append(el("p", "eyebrow", `Like ${from}`), title, facts);
+    text.append(el("p", "eyebrow", s.via ? `Via ${s.via}` : `Like ${from}`), title, facts);
     head.append(posterEl(s.poster, s.name, "pk-poster"), text);
     const kept = readKept().includes(slugOf(card));
     // What a sideways drag does, said where it happens. Screen readers get the Keep button instead.
