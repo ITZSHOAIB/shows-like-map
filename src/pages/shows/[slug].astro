@@ -24,9 +24,13 @@ export function getStaticPaths() {
   const linkedOf = (id: number) => (matches.get(id) ?? []).flatMap((m) => byId.get(m.id) ?? []);
   return catalogue.map((show) => {
     const list = (matches.get(show.id) ?? []).map((m) => ({ match: m, show: byId.get(m.id) }));
-    // What holding each linked match shows (decision 0007).
-    const peek = Object.fromEntries(list.flatMap(({ match, show: s }) => (s ? [[s.slug, peekOf(show, match, s, linkedOf(s.id))]] : [])));
-    return { params: { slug: show.slug }, props: { show, matches: list, peek, repeated: count.get(show.name)! > 1, further: furtherOut(show, list.map((l) => l.match), matches, byId) } };
+    const further = furtherOut(show, list.map((l) => l.match), matches, byId);
+    // What holding each linked match shows (decision 0007), a step further out too: every card there has a page.
+    const peek = Object.fromEntries([
+      ...list.flatMap(({ match, show: s }) => (s ? [[s.slug, peekOf(show, match, s, linkedOf(s.id))]] : [])),
+      ...further.map((f) => [f.show.slug, peekOf(show, f.match, f.show, linkedOf(f.show.id), f.via)]),
+    ]);
+    return { params: { slug: show.slug }, props: { show, matches: list, peek, repeated: count.get(show.name)! > 1, further } };
   });
 }
 

@@ -22,7 +22,7 @@ While a filter is on and the show's own matches leave fewer than six, the page a
 - **Ranking:** a show scores higher the more of this show's matches list it, and higher still when those matches rank early. The show itself and its direct matches are left out.
 - **Every filter finds some:** the page carries the best eight for each filter (finished, and finished under each hour limit), 25 cards at most. CSS hides what the chosen filter doesn't pass, as it does for the first row, so it works without JavaScript. JavaScript only hides the row again once the first row has six or more left.
 - **No filter, no row.** The page is unchanged for anyone who hasn't chosen a time.
-- A further-out card is a plain link. Hold-to-peek is for the first row, whose peek data is about its own matches.
+- A further-out card peeks like a match: hold it and swipe or tap to keep (decisions 0007, 0012). Its peek says "Via <match>" where a match says "Like <show>", since its reason is about that match.
 
 ## Consequences
 
