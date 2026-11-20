@@ -26,6 +26,7 @@ const STATUS_ICON: Record<Status, string> = {
   uncertain: "question",
   upcoming: "calendar-dots",
 };
+const linked = matches.some((m) => m.show);
 const description = `Shows like ${show.name}, each with why it's similar, whether it ended, and how many hours it takes to finish.`;
 ---
 
@@ -39,7 +40,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
         show.poster ? (
           <img class="poster h-poster" src={show.poster} alt={`${show.name} poster`} width="210" height="295" fetchpriority="high" />
         ) : (
-          <span class="poster-ph h-poster">{show.name}</span>
+          <span class="poster-ph h-poster" aria-hidden="true">{show.name}</span>
         )
       }
       <div class="h-text">
@@ -55,19 +56,23 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
           {show.seasons} {show.seasons === 1 ? "season" : "seasons"} · {show.episodes} episodes{show.language && <> · {show.language}</>}
         </p>
       </div>
-      {/* Three lines of summary keep the matches near the top; tapping opens the rest and the people. */}
+      {/* Three lines of summary keep the matches near the top; the toggle opens the rest and the people. The text sits
+          outside <summary> so screen readers hear a short button, not the whole summary. */}
       {
         (show.summary || show.creators.length > 0 || show.cast.length > 0) && (
-          <details class="about">
-            <summary>
-              {show.summary && <span class="summary">{show.summary}</span>}
-              <span class="toggle"><span class="more">More</span><span class="less">Less</span><Icon name="caret-down" /></span>
-            </summary>
-            <dl class="people small">
-              {show.creators.length > 0 && <><dt>Created by</dt><dd>{show.creators.join(", ")}</dd></>}
-              {show.cast.length > 0 && <><dt>Starring</dt><dd>{show.cast.join(", ")}</dd></>}
-            </dl>
-          </details>
+          <div class="about">
+            {show.summary && <p class="summary">{show.summary}</p>}
+            <details>
+              <summary class="toggle">
+                <span class="more">More</span><span class="less">Less</span><span class="sr-only"> about {show.name}</span>
+                <Icon name="caret-down" />
+              </summary>
+              <dl class="people small">
+                {show.creators.length > 0 && <><dt>Created by</dt><dd>{show.creators.join(", ")}</dd></>}
+                {show.cast.length > 0 && <><dt>Starring</dt><dd>{show.cast.join(", ")}</dd></>}
+              </dl>
+            </details>
+          </div>
         )
       }
       </div>
@@ -77,10 +82,12 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
       matches.length > 0 ? (
         <div class="rows">
           <section class="row">
-            <h2 class="wrap"><Icon name="sparkle" /> Shows like {show.name}</h2>
-            <div class="track">
-              {matches.map((m, i) => <MatchCard match={m.match} show={m.show} eager={i < 3} />)}
-            </div>
+            <h2 class="wrap" id="matches-title"><Icon name="sparkle" /> Shows like {show.name}</h2>
+            {/* role="list" because Safari drops list semantics under list-style: none. With no links to tab through,
+                the track itself takes focus so keyboard users can still scroll it. */}
+            <ul class="track" role="list" aria-labelledby="matches-title" tabindex={linked ? undefined : 0}>
+              {matches.map((m, i) => <li><MatchCard match={m.match} show={m.show} eager={i < 3} /></li>)}
+            </ul>
           </section>
         </div>
       ) : (
@@ -120,8 +127,9 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .h-text .muted { margin: 0; }
   .about { grid-column: 1 / -1; min-width: 0; max-width: 65ch; }
   @media (min-width: 720px) { .about { grid-column: 2; } }
-  .about summary { list-style: none; cursor: pointer; }
-  .about summary::-webkit-details-marker { display: none; }
+  .summary { margin: 0; }
+  .toggle { list-style: none; cursor: pointer; }
+  .toggle::-webkit-details-marker { display: none; }
   /* Closed: three lines fading out. Open: the full text slides down (height: auto animates where interpolate-size is
      supported, and simply snaps open elsewhere), then the people fade in. */
   .about { interpolate-size: allow-keywords; }
@@ -129,15 +137,19 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
     display: block; height: calc(3 * 1.45em); overflow: hidden; transition: height 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
     mask-image: linear-gradient(to bottom, #000 45%, transparent);
   }
-  .about[open] .summary { height: auto; mask-image: none; }
-  .toggle { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: var(--accent); font-size: 13px; font-weight: 600; }
+  .about:has(details[open]) .summary { height: auto; mask-image: none; }
+  /* At least 24px tall, the WCAG 2.2 minimum target. */
+  .toggle {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding-right: 4px;
+    color: var(--accent); font-size: 13px; font-weight: 600;
+  }
   .toggle :global(.icon) { transition: rotate 0.3s; }
-  .about[open] .toggle :global(.icon) { rotate: 180deg; }
-  .less, .about[open] .more { display: none; }
-  .about[open] .less { display: inline; }
-  .about[open] .people { animation: fade-in 0.35s 0.1s both; }
+  details[open] .toggle :global(.icon) { rotate: 180deg; }
+  .less, details[open] .more { display: none; }
+  details[open] .less { display: inline; }
+  details[open] .people { animation: fade-in 0.35s 0.1s both; }
   @keyframes fade-in { from { opacity: 0; translate: 0 -4px; } }
-  .people { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 10px 0 0; }
+  .people { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 6px 0 0; }
   .people dt { color: var(--muted); }
   .people dd { margin: 0; }
 
@@ -147,8 +159,11 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .row h2 :global(.icon) { color: var(--accent); align-self: center; }
   .row h2 small { font: 500 12.5px var(--font-body); }
   .track {
-    display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
-    padding: 4px max(16px, calc((100% - 1100px) / 2 + 16px)) 8px; scroll-padding-inline: max(16px, calc((100% - 1100px) / 2 + 16px));
+    display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; list-style: none; margin: 0;
+    /* 10px on top leaves room for the focused card's ring, which the scroller would otherwise clip. */
+    padding: 10px max(16px, calc((100% - 1100px) / 2 + 16px)) 8px; scroll-padding-inline: max(16px, calc((100% - 1100px) / 2 + 16px));
   }
   .track::-webkit-scrollbar { display: none; }
+  .track li { flex: none; display: flex; scroll-snap-align: start; }
+  .track:focus-visible { outline-offset: -2px; }
 </style>

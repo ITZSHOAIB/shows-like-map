@@ -18,7 +18,7 @@ const Tag = show ? "a" : "div";
     show?.poster ? (
       <img class="poster" src={show.poster} alt="" width="210" height="295" loading={eager ? "eager" : "lazy"} decoding="async" />
     ) : (
-      <span class="poster-ph">{match.name}</span>
+      <span class="poster-ph" aria-hidden="true">{match.name}</span>
     )
   }
   <b class="c-title">{match.name}</b>
@@ -38,10 +38,13 @@ const Tag = show ? "a" : "div";
 </Tag>
 
 <style>
-  .card { flex: none; width: 140px; scroll-snap-align: start; display: grid; gap: 4px; align-content: start; }
+  .card { width: 140px; display: grid; gap: 4px; align-content: start; }
   @media (min-width: 720px) { .card { width: 160px; } }
   a.card .poster { transition: scale 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s; box-shadow: 0 8px 20px rgb(0 0 0 / 0.35); }
   a.card:hover .poster, a.card:focus-visible .poster { scale: 1.03; box-shadow: 0 0 0 2px var(--accent), 0 12px 28px rgb(0 0 0 / 0.45); }
+  /* Keyboard focus rings the poster: a ring round the whole card would be clipped by the scrolling track. */
+  a.card:focus-visible { outline: none; }
+  a.card:focus-visible :is(.poster, .poster-ph) { outline: 2px solid var(--accent); outline-offset: 3px; }
   a.card:active .poster { scale: 0.96; }
   .c-title { margin-top: 4px; font: 700 14px/1.25 var(--font-display); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .c-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; font-size: 12px; color: var(--muted); }
