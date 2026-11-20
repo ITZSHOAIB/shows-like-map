@@ -102,4 +102,12 @@ test("an active filter stands out in forced colours", async ({ page }) => {
   const on = await bg(".f-chip:has(#f-fin)"), off = await bg(".f-chip:has(#f-h20)");
   expect(on).not.toBe(off);
   await expect(page.locator(".f-chip:has(#f-h20)")).toHaveCSS("border-top-style", "solid");
+  // An "on" chip keeps its own colours, ring included, so the ring must be a system colour: our yellow vanishes on white.
+  await finished(page).blur();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  await expect(finished(page)).toBeFocused();
+  const chip = page.locator(".f-chip:has(#f-fin)");
+  await expect(chip).toHaveCSS("outline-style", "solid");
+  await expect(chip).not.toHaveCSS("outline-color", "rgb(255, 211, 107)");
 });

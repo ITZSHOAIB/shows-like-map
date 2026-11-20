@@ -333,7 +333,13 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .f-chip:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 700; }
   .f-chip :global(.icon) { color: var(--accent); }
   .f-chip:not(:has(input:checked)) :global(.icon) { color: var(--muted); }
-  @media (forced-colors: active) { .f-chip:has(input:checked) { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; } .f-chip:has(input:checked) :global(.icon) { color: HighlightText; } }
+  /* Forced colours drop the fill, so "on" chips take the system highlight. That keeps their own colours, ring included,
+     so the ring takes the system text colour: the accent would vanish on a light high-contrast theme. */
+  @media (forced-colors: active) {
+    .f-chip:has(input:checked) { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+    .f-chip:has(input:checked) :global(.icon) { color: HighlightText; }
+    .f-chip:has(input:focus-visible) { outline-color: CanvasText; }
+  }
 
   /* Cards hide when they don't pass a filter that's on (attributes from src/lib/filters.ts, one rule per hour limit). */
   .row:has(#f-fin:checked) .track li:not([data-fin]),
