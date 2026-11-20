@@ -4,7 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"];
-const cards = (page: Page) => page.locator(".track li:visible");
+const cards = (page: Page) => page.locator(".row:not(.further) .track li:visible");
 const finished = (page: Page) => page.getByRole("checkbox", { name: "Finished" });
 const hours = (page: Page, h: number) => page.getByRole("radiogroup", { name: "Hours to finish" }).getByRole("radio", { name: `Under ${h} h` });
 
@@ -68,7 +68,7 @@ test("the next show opens already filtered, from the first frame with cards", as
   // The first frame the next page paints with its cards in it (they're further down than the first paint reaches).
   await page.addInitScript(() => {
     const frame = () => {
-      const all = document.querySelectorAll(".track li");
+      const all = document.querySelectorAll(".row:not(.further) .track li");
       if (!all.length) return requestAnimationFrame(frame);
       const shown = [...all].filter((li) => getComputedStyle(li).display !== "none").length;
       sessionStorage.setItem("first-frame", `${shown}/${all.length}`);
@@ -77,11 +77,11 @@ test("the next show opens already filtered, from the first frame with cards", as
   });
   await page.goto("/shows/breaking-bad/");
   await finished(page).check();
-  await page.locator(".track a").first().click();
+  await page.locator(".row:not(.further) .track a").first().click();
   await expect(page).toHaveURL(/better-call-saul/);
   await expect(finished(page)).toBeChecked();
   const now = await cards(page).count();
-  expect(now).toBeLessThan(await page.locator(".track li").count());
+  expect(now).toBeLessThan(await page.locator(".row:not(.further) .track li").count());
   expect(await page.evaluate(() => sessionStorage.getItem("first-frame"))).toBe(`${now}/10`);
   await expect(page.locator("#matches-count")).toHaveText(`Showing ${now} of 10`);
 });
@@ -92,7 +92,7 @@ test("a new tab starts with no filters on", async ({ page, context }) => {
   const other = await context.newPage();
   await other.goto("/shows/better-call-saul/");
   await expect(finished(other)).not.toBeChecked();
-  await expect(other.locator(".track li:visible")).toHaveCount(10);
+  await expect(other.locator(".row:not(.further) .track li:visible")).toHaveCount(10);
 });
 
 test("filter controls have names, a group, and targets of at least 24px", async ({ page }) => {

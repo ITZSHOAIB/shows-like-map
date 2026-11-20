@@ -24,6 +24,7 @@ Found a wrong match, or want something taken down? [Open an issue](../../issues/
   7. [Hold a poster to peek](docs/decisions/0007-hold-to-peek.md)
   8. [Home page: a wall of shows, and the time you have](docs/decisions/0008-home-wall-and-time.md)
   9. [How the site reads to search engines and link previews](docs/decisions/0009-search-previews-and-structured-data.md)
+  10. [A step further out: when your time filter empties a list](docs/decisions/0010-a-step-further-out.md)
 
 ## Develop
 

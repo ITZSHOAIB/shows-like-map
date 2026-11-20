@@ -3,7 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"];
-const card = (page: Page, name: string) => page.locator(".track a.card").filter({ hasText: name });
+const card = (page: Page, name: string) => page.locator(".row:not(.further) .track a.card").filter({ hasText: name });
 const peek = (page: Page) => page.getByRole("dialog");
 const path = (page: Page) => page.getByRole("navigation", { name: "Your path" }).getByRole("listitem");
 
