@@ -59,10 +59,15 @@ test("keyboard focus is visible, and on a card it rings the poster", async ({ pa
   await expect(card.locator(".poster")).toHaveCSS("outline-style", "solid");
 });
 
-test("a row with no links can still be scrolled by keyboard", async ({ page }) => {
+test("a match without a page here links to TVmaze, says so, and is reached by keyboard", async ({ page }) => {
   await page.goto("/shows/planet-earth/");
-  await expect(page.locator(".track")).toHaveAttribute("tabindex", "0");
-  await expect(page.getByRole("list", { name: "Shows like Planet Earth" })).toBeVisible();
+  const card = page.locator(".track a.card.out").first();
+  expect(await card.getAttribute("href")).toMatch(new RegExp("^https://www[.]tvmaze[.]com/shows/[0-9]+$"));
+  await expect(card.locator(".c-meta")).toContainText("On TVmaze");
+  await page.keyboard.press("Tab");
+  for (let i = 0; i < 30 && !(await card.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
+  await expect(card).toBeFocused();
+  await expect(card.locator(".poster-ph")).toHaveCSS("outline-style", "solid");
 });
 
 test("animations stop when reduced motion is on", async ({ page }) => {

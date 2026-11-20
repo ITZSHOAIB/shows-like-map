@@ -14,7 +14,7 @@ import { watchUrl } from "../../lib/watch";
 export function getStaticPaths() {
   const catalogue = loadCatalogue();
   const byId = new Map(catalogue.map((s) => [s.id, s]));
-  // A match links to its own page when it has one; matches outside the catalogue show unlinked (decision in #2).
+  // A match links to its own page when it has one; matches outside the catalogue link out to TVmaze.
   const matches = loadMatches();
   // A name two shows share gets its year in the title and description, so no two pages read alike in search results.
   const count = new Map<string, number>();
@@ -180,9 +180,8 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
                 <button type="reset" form="filters" class="pill f-chip">Clear filters</button>
               </p>
             </>)}
-            {/* role="list" because Safari drops list semantics under list-style: none. With no links to tab through,
-                the track itself takes focus so keyboard users can still scroll it. */}
-            <ul class="track" role="list" aria-labelledby="matches-title" tabindex={linked ? undefined : 0}>
+            {/* role="list" because Safari drops list semantics under list-style: none. */}
+            <ul class="track" role="list" aria-labelledby="matches-title">
               {matches.map((m, i) => <li {...filterAttrs(m.show)}><MatchCard match={m.match} show={m.show} eager={i < 3} /></li>)}
             </ul>
             {linked && <p class="peek-hint wrap" id="peek-hint" hidden><Icon name="hand-tap" /> Hold a poster to peek</p>}
@@ -198,13 +197,13 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
       download in flight to the navigation, so a tap shows the next page in under 300 ms (decision 0005). */}
   {linked && <Peek data={peek} from={show.name} />}
   <script type="speculationrules" is:inline set:html={JSON.stringify({
-    prefetch: [{ source: "document", where: { selector_matches: "a.card, .trail a" }, eagerness: "moderate" }],
+    prefetch: [{ source: "document", where: { selector_matches: "a.card:not(.out), .trail a" }, eagerness: "moderate" }],
   })} />
   <script>
     // The tapped poster takes the next hero's name and this hero shrinks into the next page's newest path chip.
     // Going back along the path, the chip grows into the hero instead.
     document.addEventListener("click", (e) => {
-      const link = (e.target as Element).closest<HTMLAnchorElement>("a.card, .trail a");
+      const link = (e.target as Element).closest<HTMLAnchorElement>("a.card:not(.out), .trail a");
       if (!link || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       document.querySelectorAll<HTMLElement>("[style*='view-transition-name']").forEach((el) => (el.style.viewTransitionName = ""));
       const hero = document.querySelector<HTMLElement>(".h-poster");

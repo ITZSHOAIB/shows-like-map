@@ -1,8 +1,10 @@
 ---
 // One match in a row: poster, name, year, status and hours, and the one-line "why".
-// Matches outside the catalogue have no page, poster or facts, so they show as a plain card (decision in #2).
+// Matches outside the catalogue have no page, poster or facts here, so they link to the show on TVmaze instead, marked as
+// leaving the site: every match has checked out on TVmaze, so the trail never just stops.
 import { hours, STATUS_LABEL, type Show } from "../lib/catalogue";
 import type { Match } from "../lib/matches";
+import Icon from "./Icon.astro";
 
 interface Props {
   match: Match;
@@ -10,10 +12,9 @@ interface Props {
   eager?: boolean;
 }
 const { match, show, eager } = Astro.props;
-const Tag = show ? "a" : "div";
 ---
 
-<Tag class="card" href={show && `/shows/${show.slug}/`}>
+<a class:list={["card", { out: !show }]} href={show ? `/shows/${show.slug}/` : `https://www.tvmaze.com/shows/${match.id}`}>
   {
     show?.poster ? (
       <img class="poster" src={show.poster} alt="" width="210" height="295" loading={eager ? "eager" : "lazy"} decoding="async" />
@@ -31,11 +32,11 @@ const Tag = show ? "a" : "div";
         {show.minutes !== null && <> · {hours(show.minutes)}</>}
       </span>
     ) : (
-      match.year && <span class="c-meta">{match.year}</span>
+      <span class="c-meta">{match.year && <>{match.year} ·</>} On TVmaze <Icon name="arrow-up-right" /></span>
     )
   }
   <span class="c-why">{match.why}</span>
-</Tag>
+</a>
 
 <style>
   .card { width: 140px; display: grid; gap: var(--space-1); align-content: start; }
