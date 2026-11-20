@@ -1,0 +1,262 @@
+---
+// Hold-to-peek (#3, decision 0007): hold a match's poster and it grows into a card with its facts, why it's similar,
+// its plot and where it leads, so you can decide before you hop. Let go and it stays; Open hops with the usual morph.
+// Everything in it is also on the show's own page, so it's a shortcut, never the only way to something.
+import type { Peek } from "../lib/peek";
+
+interface Props { data: Record<string, Peek>; from: string }
+const { data, from } = Astro.props;
+---
+
+<script type="application/json" id="peek-data" set:html={JSON.stringify(data).replace(/</g, "\\u003c")} />
+<dialog class="peek" id="peek" aria-labelledby="peek-title" data-from={from}></dialog>
+
+<script>
+  import type { Peek } from "../lib/peek";
+
+  const dialog = document.getElementById("peek") as HTMLDialogElement;
+  const data: Record<string, Peek> = JSON.parse(document.getElementById("peek-data")!.textContent!);
+  const from = dialog.dataset.from!;
+  const HOLD_MS = 420; // under the ~500 ms after which phones open their own long-press menu
+  const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+  const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // On a touch screen, say once that holding does something; gone after the first peek.
+  let hint: HTMLElement | null = document.getElementById("peek-hint");
+  let peeked = false;
+  try { peeked = localStorage.getItem("slm:peeked") === "1"; } catch {}
+  if (hint && !peeked && matchMedia("(hover: none) and (pointer: coarse)").matches) hint.hidden = false;
+  else hint = null;
+  const slugOf = (card: Element) => card.getAttribute("href")!.split("/")[2];
+  const posterOf = (card: Element) => card.querySelector<HTMLElement>(".poster, .poster-ph")!;
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = "") => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  };
+  const posterEl = (src: string | null, name: string, cls = "") => {
+    if (!src) return el("span", `poster-ph ${cls}`, name);
+    const img = el("img", `poster ${cls}`);
+    img.src = src;
+    img.alt = "";
+    img.draggable = false;
+    return img;
+  };
+
+  // A hop starts its morph from the element named hero-poster; this page's hero goes to "prev-hero" so it can shrink
+  // into the next page's path chip, as the card tap does (decision 0005).
+  const nameForMorph = (poster: HTMLElement | null, hero: string) => {
+    document.querySelectorAll<HTMLElement>("[style*='view-transition-name']").forEach((e) => (e.style.viewTransitionName = ""));
+    const h = document.querySelector<HTMLElement>(".h-poster");
+    if (h) h.style.viewTransitionName = hero;
+    if (poster) poster.style.viewTransitionName = "hero-poster";
+  };
+  // A lead is two levels down: the show in between goes on "Your path" too, so the strip still tells the way you came.
+  const via = (slug: string) => {
+    try {
+      const path = JSON.parse(sessionStorage.getItem("slm:path") || "[]");
+      if (path.at(-1)?.slug !== slug) path.push({ slug, name: data[slug].name, poster: data[slug].poster });
+      sessionStorage.setItem("slm:path", JSON.stringify(path.slice(-12)));
+    } catch {}
+  };
+
+  function fill(card: HTMLAnchorElement) {
+    const s = data[slugOf(card)];
+    const head = el("div", "pk-head");
+    const text = el("div");
+    const title = el("h2", "", s.name);
+    title.id = "peek-title";
+    const facts = el("ul", "pk-facts");
+    facts.append(...s.facts.map((f) => el("li", "pill", f)));
+    text.append(el("p", "eyebrow", `Like ${from}`), title, facts);
+    head.append(posterEl(s.poster, s.name, "pk-poster"), text);
+    const body: HTMLElement[] = [head, el("p", "pk-why", s.why)];
+    if (s.summary) body.push(el("p", "pk-sum", s.summary));
+    if (s.leads.length) {
+      const heading = el("h3", "eyebrow pk-leads-label", "Leads to");
+      heading.id = "peek-leads";
+      const leads = el("ul", "pk-leads");
+      leads.setAttribute("aria-labelledby", "peek-leads");
+      leads.append(...s.leads.map((l) => {
+        const a = el("a", "pk-lead");
+        a.href = `/shows/${l.slug}/`;
+        const img = posterEl(l.poster, l.name);
+        a.append(img, el("span", "", l.name));
+        a.addEventListener("click", (e) => {
+          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          via(slugOf(card));
+          nameForMorph(img, "none"); // the path chip it'd shrink into is the show in between, not this one
+        });
+        const li = el("li");
+        li.append(a);
+        return li;
+      }));
+      body.push(heading, leads);
+    }
+    const actions = el("div", "pk-actions");
+    const go = el("a", "pk-open", "Open");
+    go.href = card.href;
+    go.autofocus = true;
+    go.addEventListener("click", (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      nameForMorph(dialog.querySelector(".pk-poster"), "prev-hero"); // the big poster becomes the next hero
+    });
+    const close = el("button", "pk-close", "Close");
+    close.type = "button";
+    close.addEventListener("click", hide);
+    actions.append(go, close);
+    body.push(actions);
+    dialog.replaceChildren(...body);
+  }
+
+  // The card's poster box and the dialog: the dialog grows out of the one into the other (and back).
+  function frames(card: HTMLAnchorElement) {
+    const d = dialog.getBoundingClientRect(), r = posterOf(card).getBoundingClientRect();
+    const p = dialog.querySelector(".pk-poster")!.getBoundingClientRect();
+    return {
+      clip: [{ clipPath: `inset(${r.top - d.top}px ${d.right - r.right}px ${d.bottom - r.bottom}px ${r.left - d.left}px round 8px)` }, { clipPath: "inset(0 round 12px)" }],
+      poster: [{ transform: `translate(${r.left - p.left}px, ${r.top - p.top}px) scale(${r.width / p.width})` }, { transform: "none" }],
+    };
+  }
+  const textParts = () => dialog.querySelectorAll(".pk-head > div, .pk-head ~ *");
+
+  let held: HTMLAnchorElement | null = null;
+  function show(card: HTMLAnchorElement) {
+    held = card;
+    fill(card);
+    dialog.showModal();
+    dialog.scrollTop = 0;
+    hint?.remove();
+    try { localStorage.setItem("slm:peeked", "1"); } catch {}
+    if (still()) return;
+    const f = frames(card);
+    const o = { duration: 340, easing: EASE };
+    dialog.animate(f.clip, o);
+    dialog.querySelector(".pk-poster")!.animate(f.poster, o);
+    textParts().forEach((e) => e.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], o));
+    dialog.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, pseudoElement: "::backdrop" });
+  }
+  function hide() {
+    if (!dialog.open || !held) return;
+    const card = held;
+    held = null;
+    if (still() || !card.checkVisibility()) return dialog.close();
+    const f = frames(card);
+    const o = { duration: 260, easing: EASE, fill: "forwards" as const };
+    textParts().forEach((e) => e.animate([{ opacity: 1 }, { opacity: 0, offset: 0.5 }, { opacity: 0 }], o));
+    dialog.querySelector(".pk-poster")!.animate([...f.poster].reverse(), o);
+    dialog.animate([{ opacity: 1 }, { opacity: 0 }], { ...o, pseudoElement: "::backdrop" });
+    dialog.animate([...f.clip].reverse(), o).finished.then(() => {
+      dialog.close();
+      dialog.getAnimations({ subtree: true }).forEach((a) => a.cancel());
+    });
+  }
+  dialog.addEventListener("cancel", (e) => { e.preventDefault(); hide(); }); // Esc: shrink back, not vanish
+  dialog.addEventListener("click", (e) => { if (e.target === dialog) hide(); }); // the dimmed page around it
+  // Back from the next show: the page comes back as it was left, so close the peek first.
+  addEventListener("pageshow", (e) => { if (e.persisted && dialog.open) { held = null; dialog.close(); } });
+
+  // ---------- the hold ----------
+  let press: { card: HTMLAnchorElement; x: number; y: number; timer: number } | null = null;
+  let touch = false; // the last press was a finger or pen, not a mouse
+  let holding = false; // the press that opened the peek is still down
+  let releasedAt = -Infinity;
+  let lifted = false; // that press just ended, and its click hasn't come yet
+  // While the finger that opened the peek is down, or only just lifted, whatever is under it now (a link in the peek)
+  // gets neither the phone's long-press menu nor the tap the lifting finger makes.
+  const fresh = () => holding || performance.now() - releasedAt < 400;
+
+  const endPress = () => {
+    if (press) { clearTimeout(press.timer); press.card.classList.remove("peek-pressing"); }
+    press = null;
+  };
+  const open = (card: HTMLAnchorElement) => {
+    endPress();
+    holding = true;
+    navigator.vibrate?.(10);
+    show(card);
+  };
+
+  document.querySelector(".rows")?.addEventListener("pointerdown", (e) => {
+    const p = e as PointerEvent;
+    touch = p.pointerType !== "mouse";
+    const card = (p.target as Element).closest<HTMLAnchorElement>("a.card");
+    if (!card || p.button !== 0 || !data[slugOf(card)]) return;
+    card.classList.add("peek-pressing");
+    press = { card, x: p.clientX, y: p.clientY, timer: window.setTimeout(() => open(card), HOLD_MS) };
+  });
+  // Moving means scrolling or dragging, not holding.
+  addEventListener("pointermove", (e) => {
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) endPress();
+  });
+  const release = () => {
+    endPress();
+    if (!holding) return;
+    holding = false;
+    lifted = true;
+    releasedAt = performance.now();
+    setTimeout(() => (lifted = false), 400);
+  };
+  addEventListener("pointerdown", () => (lifted = false), { capture: true }); // a new press: its tap is meant
+  addEventListener("pointerup", release);
+  addEventListener("pointercancel", release);
+  addEventListener("blur", release); // a press that ends in another window never sends pointerup here
+  document.addEventListener("touchmove", (e) => { if (holding) e.preventDefault(); }, { passive: false });
+  document.addEventListener("contextmenu", (e) => {
+    if (fresh()) return e.preventDefault();
+    // A long press that beat our timer peeks. A right-click with a mouse keeps the browser's menu ("Open in new tab").
+    const card = (e.target as Element).closest?.<HTMLAnchorElement>(".track a.card");
+    if (card && touch && data[slugOf(card)]) { e.preventDefault(); open(card); }
+  });
+  // The tap the opening finger makes as it lifts goes nowhere.
+  document.addEventListener("click", (e) => {
+    if (!holding && !lifted) return;
+    lifted = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }, { capture: true });
+
+</script>
+
+<style is:global>
+  /* A held card: no phone callout or link preview, no text selection, no image drag; the poster sinks a little. */
+  .track a.card, .track a.card * { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+  .track a.card.peek-pressing .poster { scale: 0.94; transition: scale 0.42s var(--ease); }
+  .peek, .peek * { -webkit-touch-callout: none; -webkit-user-drag: none; }
+
+  .peek {
+    width: min(380px, calc(100vw - 2 * var(--gutter))); max-height: 86dvh; margin: auto; padding: var(--space-4);
+    border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, #fff 7%, var(--bg)); color: var(--text);
+    overflow-y: auto; overscroll-behavior: contain; box-shadow: var(--shadow-2);
+  }
+  .peek::backdrop { background: rgb(0 0 0 / 0.72); }
+  html:has(.peek[open]) { overflow: hidden; }
+  .pk-head { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: var(--space-4); align-items: end; }
+  .pk-poster { width: 110px; height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-media); box-shadow: var(--shadow-1); transform-origin: 0 0; }
+  .pk-head h2 { margin: 0; font-size: var(--text-lg); line-height: 1.1; }
+  .pk-head .eyebrow { margin: 0 0 var(--space-1); }
+  .pk-facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-2) 0 0; padding: 0; }
+  .pk-facts .pill { min-height: 24px; font-size: var(--text-xs); }
+  .pk-why { margin: var(--space-4) 0 var(--space-2); font-weight: 600; }
+  .pk-sum { margin: 0; color: var(--muted); font-size: var(--text-sm); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .peek .pk-leads-label { margin: var(--space-6) 0 var(--space-2); }
+  .pk-leads { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding: 0; }
+  .pk-lead { display: grid; gap: var(--space-1); color: inherit; text-decoration: none; font-size: var(--text-xs); line-height: 1.2; }
+  .pk-lead span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pk-lead .poster-ph { font-size: 10px; }
+  .pk-lead:hover span { text-decoration: underline; text-underline-offset: 2px; }
+  .pk-lead:focus-visible { outline: none; }
+  .pk-lead:focus-visible :is(.poster, .poster-ph) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pk-actions { display: flex; gap: var(--space-2); margin-top: var(--space-6); }
+  .pk-actions > * {
+    flex: 1; display: inline-flex; justify-content: center; align-items: center; min-height: 44px; border-radius: var(--radius-pill);
+    font: 700 var(--text-sm) var(--font-label); text-decoration: none; cursor: pointer;
+  }
+  .pk-open { background: var(--accent); color: #17130a; border: 1px solid var(--accent); }
+  .pk-close { background: none; color: var(--text); border: 1px solid var(--line); }
+  .pk-actions > :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* Forced colours: the gold fill is dropped, so Open keeps a border like Close, and rings take the system colour. */
+  @media (forced-colors: active) {
+    .pk-actions > :focus-visible, .pk-lead:focus-visible :is(.poster, .poster-ph) { outline-color: CanvasText; }
+  }
+</style>
