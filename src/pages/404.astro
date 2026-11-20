@@ -1,28 +1,24 @@
 ---
 // Cloudflare Pages serves 404.html with a 404 status; without it, unknown URLs got the home page with a 200.
+// It wears the site's own header, type and footer, so a wrong link still feels like the same place.
+import Icon from "../components/Icon.astro";
+import Base from "../layouts/Base.astro";
 ---
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <meta name="robots" content="noindex" />
-    <title>Page not found | Shows Like Map</title>
-  </head>
-  <body>
-    <main>
-      <h1>Page not found</h1>
-      <p>This show isn't on the map, or the link is wrong.</p>
-      <p><a href="/">Back to Shows Like Map</a></p>
-    </main>
-  </body>
-</html>
+
+<Base title="Page not found | Shows Like Map" noindex>
+  <main class="wrap lost">
+    <p class="eyebrow">404</p>
+    <h1>Page not found</h1>
+    <p class="muted">This show isn't on the map, or the link is wrong.</p>
+    <a class="pill back" href="/"><Icon name="magnifying-glass" /> Find a show</a>
+  </main>
+</Base>
 
 <style>
-  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: #0b0d12; color: #e8e6e3; font: 16px/1.5 system-ui, sans-serif; }
-  main { padding: 24px 16px; text-align: center; }
-  h1 { font-size: clamp(28px, 6vw, 48px); margin: 0 0 8px; letter-spacing: -0.03em; }
-  p { margin: 4px 0; color: #a7a39c; }
-  a { color: #e8e6e3; }
+  .lost { padding-top: var(--space-6); padding-bottom: var(--space-4); }
+  h1 { font-size: var(--text-xl); line-height: 1.02; margin: var(--space-1) 0 var(--space-2); }
+  .lost .muted { margin: 0 0 var(--space-6); }
+  .back { min-height: 40px; padding: 0 var(--space-4); gap: var(--space-2); }
+  .back:hover { border-color: var(--accent); }
+  .back :global(.icon) { color: var(--accent); }
 </style>
