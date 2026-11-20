@@ -118,6 +118,51 @@ const hrs = (s: Show) => (s.minutes === null ? "" : `${Math.round(s.minutes / 60
     ))}
   </section>
 
+  <!-- D · Wall + Budget: B's posters with C's time question as chips; whatever you tap opens with your time applied. -->
+  <section class="v vD" aria-labelledby="d-title">
+    <h1 id="d-title" class="b-title d-title wrap">Tap one you loved. <span>We'll find the next one you'll finish.</span></h1>
+    <div class="d-bar wrap">
+      <form class="search b-search" role="search" data-results="d-results" data-limit="18" data-style="tiles">
+        <label for="d-q" class="sr-only">Search for a show you loved</label>
+        <Icon name="magnifying-glass" />
+        <input id="d-q" name="q" type="search" placeholder="Not here? Type its name" autocomplete="off" enterkeyhint="search" />
+      </form>
+      <form class="d-chips" id="d-form" aria-label="How much time you have for the next one">
+        <label class="pill f-chip"><input type="checkbox" name="finished" /><Icon name="check-circle" /> Finished</label>
+        <span class="d-label" aria-hidden="true"><Icon name="hourglass-medium" /> Under</span>
+        {BUDGETS.map((b) => <label class="pill f-chip"><input type="radio" name="hours" value={b.h} /><span class="sr-only">Under </span>{b.h} h</label>)}
+      </form>
+      <p class="d-note muted" aria-live="polite"></p>
+    </div>
+    <ul id="d-results" class="results tiles wrap" aria-live="polite"></ul>
+    <div class="d-fits wrap">
+      {BUDGETS.map((b) => (
+        <section class="d-fit" data-h={b.h}>
+          <h2 class="c-h2">Finished, and under {b.h} h</h2>
+          <ul class="tiles c-row">
+            {rowFor(b.h).map((s) => (
+              <li><a class="tile" href={`/shows/${s.slug}/`}>
+                {s.poster ? <img class="poster" src={s.poster} alt="" loading="lazy" width="210" height="295" /> : <span class="poster-ph">{s.name}</span>}
+                <span class="t-name">{s.name}</span>
+                <span class="t-meta">{hrs(s)} · {year(s)}</span>
+              </a></li>
+            ))}
+          </ul>
+          <h2 class="c-h2">Or tap one you loved, and its matches will fit too</h2>
+        </section>
+      ))}
+    </div>
+    <ul class="tiles b-wall wrap">
+      {wall.map((s) => (
+        <li><a class="tile" href={`/shows/${s.slug}/`}>
+          {s.poster ? <img class="poster" src={s.poster} alt="" loading="lazy" width="210" height="295" /> : <span class="poster-ph">{s.name}</span>}
+          <span class="t-name">{s.name}</span>
+          <span class="t-meta">{STATUS[s.status]}{hrs(s) && ` · ${hrs(s)}`}</span>
+        </a></li>
+      ))}
+    </ul>
+  </section>
+
   <nav class="proto-bar" aria-label="Prototype variants">
     <button type="button" data-step="-1" aria-label="Previous variant">‹</button>
     <span id="proto-label">A · Ask</span>
@@ -127,7 +172,7 @@ const hrs = (s: Show) => (s.minutes === null ? "" : `${Math.round(s.minutes / 60
 
 <script>
   // ---- Variant switcher (prototype only) ----
-  const VARIANTS = { A: "Ask", B: "Wall", C: "Budget" } as const;
+  const VARIANTS = { A: "Ask", B: "Wall", C: "Budget", D: "Wall + Budget" } as const;
   type V = keyof typeof VARIANTS;
   const keys = Object.keys(VARIANTS) as V[];
   const label = document.getElementById("proto-label")!;
@@ -245,12 +290,42 @@ const hrs = (s: Show) => (s.minutes === null ? "" : `${Math.round(s.minutes / 60
         console.log("[prototype] filters carried to the show page", saved);
       });
   });
+
+  // D: the time you have shows what fits now, and goes with whatever you tap as that page's filters.
+  const dForm = document.getElementById("d-form") as HTMLFormElement;
+  const dNote = document.querySelector<HTMLElement>(".d-note")!;
+  const dState = () => {
+    const f = new FormData(dForm);
+    return { finished: f.get("finished") === "on", hours: Number(f.get("hours") ?? 0) };
+  };
+  // Tapping the chosen hours again clears it, as on the show page.
+  let dWasOn = false;
+  dForm.addEventListener("pointerdown", (e) => (dWasOn = (e.target as Element).closest("label")?.querySelector("[name=hours]:checked") != null));
+  dForm.addEventListener("click", (e) => {
+    const radio = e.target as HTMLInputElement;
+    if (dWasOn && radio.name === "hours") {
+      radio.checked = false;
+      dWasOn = false;
+      dForm.dispatchEvent(new Event("change"));
+    }
+  });
+  dForm.addEventListener("change", () => {
+    const { finished, hours } = dState();
+    const what = [finished && "finished", hours && `under ${hours} h`].filter(Boolean).join(", ");
+    dNote.textContent = what ? `The shows you open will list matches that are ${what}.` : "";
+    console.log("[prototype] D time", dState());
+  });
+  document.querySelector(".vD")!.addEventListener("click", (e) => {
+    if (!(e.target as Element).closest("a")) return;
+    try { sessionStorage.setItem("slm:filters", JSON.stringify(dState())); } catch {}
+    console.log("[prototype] filters carried to the show page", dState());
+  });
 </script>
 
 <style is:global>
   /* Which variant shows: A without JavaScript. */
   .proto .v { display: none; }
-  html:not([data-v]) .vA, html[data-v="A"] .vA, html[data-v="B"] .vB, html[data-v="C"] .vC { display: block; }
+  html:not([data-v]) .vA, html[data-v="A"] .vA, html[data-v="B"] .vB, html[data-v="C"] .vC, html[data-v="D"] .vD { display: block; }
 
   .proto .small { font-size: var(--text-sm); }
   .proto h1 { font: var(--display-weight) var(--text-xl)/1.05 var(--font-display); letter-spacing: var(--display-tracking); margin: 0; }
@@ -317,8 +392,28 @@ const hrs = (s: Show) => (s.minutes === null ? "" : `${Math.round(s.minutes / 60
   .vC .c-budget:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   .vC .c-fin { margin-top: var(--space-3); min-height: 32px; cursor: pointer; }
   .vC .c-fin input { position: absolute; opacity: 0; }
-  .vC .c-row { display: none; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 112px; overflow-x: auto; padding-bottom: var(--space-2); }
+  .vC .c-row, .vD .c-row { display: none; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 112px; overflow-x: auto; padding-bottom: var(--space-2); }
   .vC:has([value="20"]:checked) .c-row[data-h="20"], .vC:has([value="40"]:checked) .c-row[data-h="40"], .vC:has([value="80"]:checked) .c-row[data-h="80"] { display: grid; }
+
+  /* D: B's wall, C's time as chips like the show page's filter bar. */
+  .vD .d-bar { position: sticky; top: 0; z-index: 2; padding-top: var(--space-3); padding-bottom: var(--space-3); background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); }
+  .vD .d-title { font-size: var(--text-lg); margin: var(--space-3) auto 0; }
+  .vD .d-title span { color: var(--muted); font-weight: 500; font-family: var(--font-body); font-size: var(--text-sm); display: block; margin-top: 2px; letter-spacing: 0; }
+  .vD .b-search input { min-height: 44px; }
+  .vD .d-chips { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-3) calc(-1 * var(--gutter)) 0; padding: 2px var(--gutter); overflow-x: auto; scrollbar-width: none; }
+  .vD .d-chips > * { flex: none; }
+  .vD .d-label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: var(--text-sm); }
+  .vD .f-chip { min-height: 32px; cursor: pointer; font-size: var(--text-sm); }
+  .vD .f-chip input { position: absolute; opacity: 0; }
+  .vD .f-chip:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .vD .d-note { margin: var(--space-2) 0 0; font-size: var(--text-xs); }
+  .vD .d-note:empty { display: none; }
+  .vD.typing .b-wall, .vD.typing .d-fits { display: none; }
+  .vD .b-wall, .vD .results { padding-top: var(--space-3); padding-bottom: var(--space-8); }
+  .vD .d-fit { display: none; }
+  .vD:has([name="hours"][value="20"]:checked) .d-fit[data-h="20"], .vD:has([name="hours"][value="40"]:checked) .d-fit[data-h="40"], .vD:has([name="hours"][value="80"]:checked) .d-fit[data-h="80"] { display: block; }
+  .vD .d-fit .c-h2 { font: 700 var(--text-md) var(--font-body); margin: var(--space-6) 0 var(--space-3); }
+  .vD .d-fit .c-row { display: grid; }
 
   /* The prototype's own bar: at the top, out of the keyboard's way, and gone while typing. */
   .proto-bar {
