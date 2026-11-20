@@ -156,7 +156,10 @@ const collage = picksIn(catalogue).filter((s) => s.poster).slice(0, 8);
       const typed = input.value.trim();
       if (failed) note.textContent = "Search didn't load. Check your connection, or tap one below.";
       else if (typed && found)
-        note.textContent = found.length ? `${found.length} ${found.length === 1 ? "show" : "shows"} found` : `No show called “${typed}” yet. Tap one you loved below.`;
+        note.textContent =
+          found.length === LIMIT ? `The ${LIMIT} closest shows`
+          : found.length ? `${found.length} ${found.length === 1 ? "show" : "shows"} found`
+          : `No show called “${typed}” yet. Tap one you loved below.`;
       else {
         const { finished, hours } = chosen();
         const what = [finished && "finished", hours && `under ${hours} h`].filter(Boolean).join(" and ");

@@ -101,10 +101,12 @@ test("forced colours keep focus rings, badges and path chips visible", async ({ 
   await expect(card.locator(".poster")).toHaveCSS("outline-style", "solid");
 });
 
-test("axe on the home page with a time chosen and search results showing", async ({ page }) => {
+test("axe and no sideways scroll at 320px on the home page, with a time chosen and search results showing", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
   await page.goto("/");
   await page.locator("#time .f-chip", { hasText: "40 h" }).click();
   await page.locator("#q").fill("the office");
   await expect(page.locator("#results .tile").first()).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });

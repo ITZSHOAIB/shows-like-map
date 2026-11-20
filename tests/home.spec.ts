@@ -8,6 +8,10 @@ test("a search with a typo finds the show, and Enter opens it", async ({ page })
   await page.locator("#q").fill("braking bad");
   await expect(page.locator("#results .tile").first()).toContainText("Breaking Bad");
   await expect(page.locator("#note")).toHaveText(/show(s)? found/);
+  await page.locator("#q").fill("the");
+  await expect(page.locator("#note")).toHaveText("The 18 closest shows");
+  await page.locator("#q").fill("braking bad");
+  await expect(page.locator("#results .tile").first()).toContainText("Breaking Bad");
   await expect(page.locator(".wall")).toBeHidden();
   await page.locator("#q").press("Enter");
   await expect(page).toHaveURL(/\/shows\/breaking-bad\/$/);
