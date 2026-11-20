@@ -28,6 +28,6 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
       - run: pnpm build
-      # The automated half of the accessibility pass (docs/agents/frontend.md), against the site just built.
+      # Browser checks against the site just built: accessibility (docs/agents/frontend.md) and going deeper.
       - run: pnpm exec playwright install --with-deps --only-shell chromium
-      - run: pnpm a11y
+      - run: pnpm e2e

@@ -21,16 +21,16 @@
   :root:not([data-theme="dark"]) {
     --tint: 200 190 170;
     --bg: #f5f3ef; --surface: rgb(0 0 0 / 0.05); --surface-2: rgb(0 0 0 / 0.09);
-    --line: rgb(0 0 0 / 0.12); --text: #14161d; --muted: #5d6273; --accent: #845b07;
-    --ended: #147144; --cancelled: #a2461b; --running: #2761b2; --unclear: #6a4bb8;
+    --line: rgb(0 0 0 / 0.12); --text: #14161d; --muted: #5d6273; --accent: #6e4c06;
+    --ended: #115e39; --cancelled: #883b17; --running: #215196; --unclear: #5b409e;
     color-scheme: light;
   }
 }
 :root[data-theme="light"] {
   --tint: 200 190 170;
   --bg: #f5f3ef; --surface: rgb(0 0 0 / 0.05); --surface-2: rgb(0 0 0 / 0.09);
-  --line: rgb(0 0 0 / 0.12); --text: #14161d; --muted: #5d6273; --accent: #845b07;
-  --ended: #147144; --cancelled: #a2461b; --running: #2761b2; --unclear: #6a4bb8;
+  --line: rgb(0 0 0 / 0.12); --text: #14161d; --muted: #5d6273; --accent: #6e4c06;
+  --ended: #115e39; --cancelled: #883b17; --running: #215196; --unclear: #5b409e;
   color-scheme: light;
 }
 
@@ -72,6 +72,12 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0; letter-spacing: -0.01e
 .s-uncertain, .s-upcoming { --s: var(--unclear); }
 .badge { display: inline-flex; align-items: center; gap: 4px; color: var(--s); font-weight: 600; white-space: nowrap; }
 
+/* Going deeper (#3): every page change cross-fades, and the show page names posters so the tapped one morphs into
+   the next hero. Browsers without cross-document view transitions just navigate. */
+@view-transition { navigation: auto; }
+::view-transition-group(*) { animation-duration: 0.3s; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
+
 @media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

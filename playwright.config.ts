@@ -13,5 +13,6 @@ export default defineConfig({
     { name: "dark", use: { colorScheme: "dark" } },
     { name: "light", use: { colorScheme: "light" } },
   ],
-  webServer: { command: `npx astro preview --port ${port}`, port, reuseExistingServer: !process.env.CI },
+  // Serves dist/ with Cloudflare's caching rules, so timings match the live site.
+  webServer: { command: `node scripts/serve.ts`, port, env: { PORT: String(port) }, reuseExistingServer: !process.env.CI },
 });

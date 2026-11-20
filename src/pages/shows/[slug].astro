@@ -35,6 +35,51 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
     <section class="hero">
       {/* The poster, blurred and faded, as the backdrop: no extra download, and every show has one (TVmaze backgrounds are 0.5 MB originals). */}
       {show.poster && <img class="backdrop" src={show.poster} alt="" aria-hidden="true" />}
+      {/* "Your path": the shows this tab went through, built before first paint from sessionStorage, so the show you came
+          from can morph into its chip. Hidden until there are two. */}
+      <nav class="trail wrap" id="trail" aria-label="Your path" hidden></nav>
+      <script is:inline define:vars={{ here: { slug: show.slug, name: show.name, poster: show.poster } }}>
+        function drawPath() {
+          let path = [];
+          try { path = JSON.parse(sessionStorage.getItem("slm:path") || "[]"); } catch {}
+          const at = path.findIndex((s) => s.slug === here.slug);
+          const arrived = at < 0; // a step deeper, not back along the path
+          path = arrived ? [...path, here].slice(-12) : path.slice(0, at + 1);
+          try { sessionStorage.setItem("slm:path", JSON.stringify(path)); } catch {}
+
+          const nav = document.getElementById("trail");
+          nav.hidden = path.length < 2;
+          const label = document.createElement("span");
+          label.className = "trail-label";
+          label.ariaHidden = "true";
+          label.textContent = "Your path";
+          const list = document.createElement("ol");
+          path.forEach((s, i) => {
+            const current = i === path.length - 1;
+            const chip = document.createElement(current ? "span" : "a");
+            chip.className = "chip";
+            if (current) chip.setAttribute("aria-current", "page");
+            else chip.href = `/shows/${s.slug}/`;
+            let morph = chip;
+            if (s.poster) {
+              morph = Object.assign(new Image(20, 30), { src: s.poster, alt: "" });
+              chip.append(morph);
+            }
+            if (arrived && i === path.length - 2) morph.style.viewTransitionName = "prev-hero";
+            const name = document.createElement("span");
+            name.textContent = s.name;
+            chip.append(name);
+            const item = document.createElement("li");
+            item.append(chip);
+            list.append(item);
+          });
+          nav.replaceChildren(label, list);
+          nav.scrollLeft = nav.scrollWidth;
+        }
+        drawPath();
+        // A page restored by Back keeps its old strip; trim the stored path to it so the next step continues from here.
+        addEventListener("pageshow", (e) => e.persisted && drawPath());
+      </script>
       <div class="hero-in wrap">
       {
         show.poster ? (
@@ -95,6 +140,28 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
       )
     }
   </main>
+  {/* The next show starts loading when a finger touches its card (on desktop, a short hover), and Chrome hands the
+      download in flight to the navigation, so a tap shows the next page in under 300 ms (decision 0005). */}
+  <script type="speculationrules" is:inline set:html={JSON.stringify({
+    prefetch: [{ source: "document", where: { selector_matches: "a.card, .trail a" }, eagerness: "moderate" }],
+  })} />
+  <script>
+    // The tapped poster takes the next hero's name and this hero shrinks into the next page's newest path chip.
+    // Going back along the path, the chip grows into the hero instead.
+    document.addEventListener("click", (e) => {
+      const link = (e.target as Element).closest<HTMLAnchorElement>("a.card, .trail a");
+      if (!link || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      document.querySelectorAll<HTMLElement>("[style*='view-transition-name']").forEach((el) => (el.style.viewTransitionName = ""));
+      const hero = document.querySelector<HTMLElement>(".h-poster");
+      if (hero) hero.style.viewTransitionName = link.matches(".trail a") ? "none" : "prev-hero";
+      const poster = link.querySelector<HTMLElement>("img, .poster-ph") ?? link;
+      poster.style.viewTransitionName = "hero-poster";
+    });
+    // Back and Forward skip the morph: names are set for going deeper, so they'd pair the wrong posters.
+    addEventListener("pageswap", (e) => {
+      if (e.activation?.navigationType === "traverse") e.viewTransition?.skipTransition();
+    });
+  </script>
   <Fragment slot="credits">
     <p>
       About {show.name}: <a href={show.tvmaze}>TVmaze</a>{show.wikidata && <>, <a href={`https://www.wikidata.org/wiki/${show.wikidata}`}>Wikidata</a></>}{show.wikipedia && <>, <a href={show.wikipedia}>Wikipedia</a></>}.
@@ -108,13 +175,37 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .backdrop {
     position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover;
     /* Darkened so white posters don't wash out the text; faded out well before the hero ends so there's no edge. */
-    filter: blur(28px) saturate(1.3) brightness(0.7); opacity: 0.55; transform: scale(1.3);
+    filter: blur(28px) saturate(1.3) brightness(0.55); opacity: 0.55; transform: scale(1.3);
     mask-image: linear-gradient(to bottom, #000 25%, transparent 85%);
   }
-  @media (prefers-color-scheme: light) { .backdrop { filter: blur(28px) saturate(1.3); opacity: 0.35; } }
+  .h-poster { box-shadow: 0 20px 50px rgb(0 0 0 / 0.55); view-transition-name: hero-poster; }
+  /* Light: a pale wash of the poster's colours (low contrast, high brightness), so even a black poster leaves the
+     background light enough for the coloured text; measured on the darkest and whitest posters. */
+  @media (prefers-color-scheme: light) {
+    .backdrop { filter: blur(28px) saturate(1.3) contrast(0.4) brightness(2); opacity: 0.35; }
+    .h-poster { box-shadow: 0 10px 24px rgb(0 0 0 / 0.15); }
+  }
   .hero-in { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px 16px; align-items: end; padding-top: 8px; padding-bottom: 24px; }
   @media (min-width: 720px) { .hero-in { grid-template-columns: 210px minmax(0, 1fr); gap: 16px 28px; } }
-  .h-poster { box-shadow: 0 20px 50px rgb(0 0 0 / 0.55); }
+
+  .trail {
+    display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-top: 6px; padding-bottom: 6px;
+    scroll-padding-inline: 16px; /* a chip focused by keyboard scrolls fully into view, ring included */
+  }
+  .trail::-webkit-scrollbar { display: none; }
+  .trail[hidden] { display: none; }
+  .trail :global(.trail-label) { flex: none; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+  .trail :global(ol) { display: flex; align-items: center; list-style: none; margin: 0; padding: 0; }
+  .trail :global(li) { display: flex; align-items: center; flex: none; }
+  .trail :global(li + li)::before { content: ""; width: 12px; height: 2px; background: var(--line); }
+  .trail :global(.chip) {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 28px; max-width: 150px; padding: 2px 10px 2px 2px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 12.5px;
+  }
+  .trail :global(.chip span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trail :global(.chip img) { width: 20px; height: 30px; flex: none; border-radius: 999px 4px 4px 999px; object-fit: cover; }
+  .trail :global(a.chip:hover) { border-color: var(--accent); }
+  .trail :global(.chip[aria-current]) { border-color: color-mix(in srgb, var(--accent) 60%, transparent); font-weight: 600; }
   .eyebrow { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; color: var(--accent); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; }
   h1 { font-size: clamp(28px, 6.5vw, 56px); line-height: 1.02; font-weight: 800; }
   .facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 8px; padding: 0; }
