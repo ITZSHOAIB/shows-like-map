@@ -93,3 +93,17 @@ test("the kept page stays out of search", async ({ page }) => {
   await page.goto("/kept/");
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
 });
+
+test("on phones the list is three across, like the home page's grid, at every width", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("slm:kept", JSON.stringify(["breaking-bad", "dark", "fleabag", "the-office-2001"])));
+  for (const width of [320, 360, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/kept/");
+    const tiles = page.locator(".k-tiles > li");
+    await expect(tiles).toHaveCount(4);
+    const tops = await tiles.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    expect(tops[1]).toBe(tops[0]);
+    expect(tops[2]).toBe(tops[0]);
+    expect(tops[3]).toBeGreaterThan(tops[0]);
+  }
+});
