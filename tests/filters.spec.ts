@@ -130,8 +130,9 @@ test("an active filter stands out in forced colours", async ({ page }) => {
   await page.goto("/shows/breaking-bad/");
   await finished(page).check();
   const bg = (sel: string) => page.locator(sel).evaluate((el) => getComputedStyle(el).backgroundColor);
-  const on = await bg(".f-chip:has(#f-fin)"), off = await bg(".f-chip:has(#f-h20)");
-  expect(on).not.toBe(off);
+  // The chip's fill eases in (global.css), so wait for it to settle rather than read it mid-fade.
+  const off = await bg(".f-chip:has(#f-h20)");
+  await expect.poll(() => bg(".f-chip:has(#f-fin)")).not.toBe(off);
   await expect(page.locator(".f-chip:has(#f-h20)")).toHaveCSS("border-top-style", "solid");
   // An "on" chip keeps its own colours, ring included, so the ring must be a system colour: our yellow vanishes on white.
   await finished(page).blur();
