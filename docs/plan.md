@@ -10,4 +10,4 @@ The work lives in five domain epics on GitHub, all in the [v1 milestone](../../.
 | [#4 Discovery and launch](../../../issues/4) | Live at showslikemap.sohab.dev and found by search | #3 |
 | [#5 Weekly refresh and open dataset](../../../issues/5) | New shows within a week; CC BY-SA dataset | #2 |
 
-How we track work: [`docs/agents/issue-tracker.md`](agents/issue-tracker.md).
+How we track work: [`docs/agents/issue-tracker.md`](agents/issue-tracker.md). Frontend changes end with an accessibility pass: [`docs/agents/frontend.md`](agents/frontend.md).

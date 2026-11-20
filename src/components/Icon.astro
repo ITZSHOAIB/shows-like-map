@@ -1,0 +1,22 @@
+---
+// A Phosphor icon (duotone, MIT), inlined at build time: no icon font and no JavaScript.
+// It takes the text colour; the duotone fill is the same colour at 20% opacity.
+import { readFileSync } from "node:fs";
+
+interface Props {
+  name: string; // file name in @phosphor-icons/core/assets/duotone, without "-duotone.svg"
+  label?: string; // only for icons that carry meaning on their own
+}
+const { name, label } = Astro.props;
+const file = `node_modules/@phosphor-icons/core/assets/duotone/${name}-duotone.svg`;
+let svg: string;
+try {
+  svg = readFileSync(file, "utf8");
+} catch {
+  throw new Error(`Unknown Phosphor icon "${name}" (${file})`);
+}
+const attrs = label ? `role="img" aria-label="${label}"` : `aria-hidden="true"`;
+const html = svg.replace("<svg ", `<svg class="icon" ${attrs} `);
+---
+
+<Fragment set:html={html} />

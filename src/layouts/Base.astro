@@ -1,0 +1,46 @@
+---
+// The page shell: head tags, the self-hosted display font, and the data credits every page carries.
+import "@fontsource-variable/bricolage-grotesque";
+import "../styles/global.css";
+import Icon from "../components/Icon.astro";
+
+interface Props {
+  title: string;
+  description?: string | null;
+  path: string; // canonical path, with a trailing slash
+}
+const { title, description, path } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="canonical" href={new URL(path, Astro.site)} />
+    <link rel="preconnect" href="https://static.tvmaze.com" />
+  </head>
+  <body>
+    <header class="top wrap">
+      <a href="/" class="brand"><Icon name="popcorn" /> Shows<span>Like</span>Map</a>
+    </header>
+    <slot />
+    <footer class="foot wrap muted">
+      <slot name="credits" />
+      <p>Show data from <a href="https://www.tvmaze.com/">TVmaze</a> (CC BY-SA 4.0) and <a href="https://www.wikidata.org/">Wikidata</a> (CC0).</p>
+    </footer>
+  </body>
+</html>
+
+<style>
+  .top { position: relative; z-index: 1; display: flex; align-items: center; height: 56px; }
+  .brand { display: inline-flex; align-items: center; gap: 6px; font: 800 18px var(--font-display); letter-spacing: -0.02em; }
+  .brand :global(.icon) { color: var(--accent); width: 24px; height: 24px; }
+  .brand span { color: var(--accent); }
+  .foot { padding-top: 40px; padding-bottom: 32px; font-size: 12.5px; }
+  .foot :global(p) { margin: 4px 0; }
+  .foot :global(a) { text-decoration: underline; text-underline-offset: 2px; }
+</style>
