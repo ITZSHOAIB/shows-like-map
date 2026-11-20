@@ -50,3 +50,8 @@ jobs:
         run: pip install --quiet huggingface_hub && pnpm catalogue:push
         env:
           HF_TOKEN: ${{ secrets.HF_WRITE_TOKEN }}
+      # Cloudflare Pages rebuilds only on pushes; the deploy hook ships the new data without one.
+      - if: github.ref == 'refs/heads/main'
+        run: curl -fsS -X POST "$CF_DEPLOY_HOOK" > /dev/null
+        env:
+          CF_DEPLOY_HOOK: ${{ secrets.CF_DEPLOY_HOOK }}
