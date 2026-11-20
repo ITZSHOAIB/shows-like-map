@@ -4,6 +4,7 @@ import Icon from "../../components/Icon.astro";
 import MatchCard from "../../components/MatchCard.astro";
 import Peek from "../../components/Peek.astro";
 import Rail from "../../components/Rail.astro";
+import MotionProto from "../../components/prototype/MotionProto.astro";
 import Base from "../../layouts/Base.astro";
 import { hours, loadCatalogue, STATUS_LABEL, type Show, type Status } from "../../lib/catalogue";
 import { filterAttrs, HOUR_LIMITS } from "../../lib/filters";
@@ -215,6 +216,7 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
       )
     }
   </main>
+  <MotionProto />
   {/* The next show starts loading when a finger touches its card (on desktop, a short hover), and Chrome hands the
       download in flight to the navigation, so a tap shows the next page in under 300 ms (decision 0005). */}
   {linked && <Peek data={peek} from={show.name} />}

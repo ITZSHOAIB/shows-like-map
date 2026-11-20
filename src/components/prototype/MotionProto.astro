@@ -1,0 +1,84 @@
+---
+// PROTOTYPE (throwaway, branch motion-prototype only): motion variants for the show page, switched with ?m= and the bar
+// at the bottom. The choice sticks for the tab, so hops keep it. Not for main: the chosen variant gets built properly.
+const VARIANTS = [
+  ["now", "Now"],
+  ["smooth", "Smooth"],
+  ["tilt", "Tilt"],
+  ["focus", "Focus"],
+  ["hero", "Hero"],
+];
+---
+
+<script is:inline>
+  (() => {
+    const q = new URLSearchParams(location.search).get("m");
+    if (q) sessionStorage.setItem("proto:m", q);
+    document.documentElement.dataset.m = q || sessionStorage.getItem("proto:m") || "now";
+  })();
+</script>
+
+<nav class="proto-bar" aria-label="Prototype motion variants">
+  {VARIANTS.map(([key, label]) => <a href={`?m=${key}`} data-k={key}>{label}</a>)}
+</nav>
+
+<script is:inline>
+  for (const a of document.querySelectorAll(".proto-bar a"))
+    if (a.dataset.k === document.documentElement.dataset.m) a.setAttribute("aria-current", "true");
+</script>
+
+<style is:global>
+  .proto-bar {
+    position: fixed; z-index: 50; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); translate: -50% 0;
+    display: flex; gap: 2px; padding: 4px; border-radius: 999px; border: 1px solid var(--pill-line);
+    background: rgb(7 8 12 / 0.85); backdrop-filter: blur(12px); box-shadow: var(--shadow-2); font-size: 13px;
+  }
+  .proto-bar a { padding: 8px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; }
+  .proto-bar a[aria-current] { background: var(--accent); color: var(--bg); font-weight: 600; }
+  main { padding-bottom: 72px; }
+
+  /* ---------- smooth: the base of every variant but "now" ---------- */
+  /* The edge fade sits on overlays, not on the scroller: a mask on a scrolling element repaints each frame on many phones. */
+  html:not([data-m="now"]) .rail > .track { mask-image: none; scroll-snap-type: x proximity; }
+  html:not([data-m="now"]) .rail::before, html:not([data-m="now"]) .rail::after {
+    content: ""; position: absolute; z-index: 1; top: 0; bottom: 0; width: var(--rail-fade); pointer-events: none;
+    opacity: 0; transition: opacity var(--slow) var(--ease);
+  }
+  html:not([data-m="now"]) .rail::before { left: 0; background: linear-gradient(to right, var(--bg), transparent); }
+  html:not([data-m="now"]) .rail::after { right: 0; background: linear-gradient(to left, var(--bg), transparent); }
+  html:not([data-m="now"]) .rail[data-l]::before, html:not([data-m="now"]) .rail[data-r]::after { opacity: 1; }
+  html:not([data-m="now"]) .rail > .track > li { animation: none; }
+
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      /* ---------- tilt: the first prototype's cover flow ---------- */
+      html[data-m="tilt"] .rail > .track { perspective: 900px; }
+      html[data-m="tilt"] .rail > .track > li {
+        animation: p-tilt-in linear both, p-tilt-out linear both;
+        animation-timeline: view(inline), view(inline); animation-range: entry, exit;
+      }
+      @keyframes p-tilt-in { from { transform: rotateY(28deg) scale(0.9); opacity: 0.4; } }
+      @keyframes p-tilt-out { to { transform: rotateY(-28deg) scale(0.9); opacity: 0.4; } }
+
+      /* ---------- focus: the card in the middle grows, the rest step back ---------- */
+      html[data-m="focus"] .rail > .track { padding-block: 18px 12px; }
+      html[data-m="focus"] .rail > .track > li {
+        animation: p-focus linear both; animation-timeline: view(inline);
+      }
+      @keyframes p-focus {
+        0%, 100% { scale: 0.88; opacity: 0.55; }
+        50% { scale: 1.04; opacity: 1; }
+      }
+
+      /* ---------- hero: the poster recedes and the backdrop drifts as the page scrolls ---------- */
+      html[data-m="hero"] .h-poster {
+        animation: p-recede linear both; animation-timeline: scroll(root); animation-range: 0 420px; transform-origin: 50% 0;
+      }
+      html[data-m="hero"] .backdrop { animation: p-drift linear both; animation-timeline: scroll(root); animation-range: 0 600px; }
+      html[data-m="hero"] .h-text { animation: p-lift linear both; animation-timeline: scroll(root); animation-range: 0 360px; }
+      @keyframes p-recede { to { scale: 0.86; opacity: 0.35; translate: 0 40px; } }
+      @keyframes p-drift { to { translate: 0 120px; opacity: 0.2; } }
+      @keyframes p-lift { to { translate: 0 -24px; opacity: 0.6; } }
+    }
+  }
+</style>
