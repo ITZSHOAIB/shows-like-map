@@ -151,7 +151,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
                 function restoreFilters() {
                   const form = document.getElementById("filters");
                   let saved = {};
-                  try { saved = JSON.parse(localStorage.getItem("slm:filters") || "{}"); } catch {}
+                  try { saved = JSON.parse(sessionStorage.getItem("slm:filters") || "{}"); } catch {}
                   form.finished.checked = saved.finished === true;
                   for (const r of form.hours) r.checked = limits.includes(saved.hours) && r.value === String(saved.hours);
                 }
@@ -199,7 +199,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
       if (e.activation?.navigationType === "traverse") e.viewTransition?.skipTransition();
     });
 
-    // Filters: CSS does the hiding. This counts what's left, saves the choice for the next show, and announces it.
+    // Filters: CSS does the hiding. This counts what's left, saves the choice for the next show (in this tab only: a new visit starts with everything), and announces it.
     const form = document.querySelector<HTMLFormElement>("#filters");
     if (form) {
       const items = [...document.querySelectorAll<HTMLElement>(".track li")];
@@ -213,7 +213,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
         count.textContent = on ? `Showing ${shown} of ${items.length}` : "";
         if (!announce) return;
         status.textContent = !on ? `Showing all ${items.length}` : shown ? `Showing ${shown} of ${items.length}` : "None match your filters";
-        try { localStorage.setItem("slm:filters", JSON.stringify({ finished, hours: Number(hours) })); } catch {}
+        try { sessionStorage.setItem("slm:filters", JSON.stringify({ finished, hours: Number(hours) })); } catch {}
       };
       form.addEventListener("change", () => update(true));
       // Tapping the chosen hours again turns it off, as filter chips do. A radio can't do that itself, so note whether

@@ -86,6 +86,15 @@ test("the next show opens already filtered, from the first frame with cards", as
   await expect(page.locator("#matches-count")).toHaveText(`Showing ${now} of 10`);
 });
 
+test("a new tab starts with no filters on", async ({ page, context }) => {
+  await page.goto("/shows/breaking-bad/");
+  await finished(page).check();
+  const other = await context.newPage();
+  await other.goto("/shows/better-call-saul/");
+  await expect(finished(other)).not.toBeChecked();
+  await expect(other.locator(".track li:visible")).toHaveCount(10);
+});
+
 test("filter controls have names, a group, and targets of at least 24px", async ({ page }) => {
   await page.goto("/shows/breaking-bad/");
   await expect(page.getByRole("form", { name: "Filter shows" })).toBeVisible();
