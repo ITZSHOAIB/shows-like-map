@@ -1,37 +1,94 @@
 ---
-// PROTOTYPE (throwaway, branch gesture-prototype only): gesture variants for the peek, switched with ?g= and the bar at
-// the bottom. The choice sticks for the tab, so hops keep it. Not for main: the chosen variant gets built properly.
-const VARIANTS = [
-  ["now", "Now"],
-  ["sheet", "Sheet"],
-  ["hold", "Hold & drag"],
-];
+// PROTOTYPE (throwaway, branch gesture-prototype only): gesture variants for the peek (?g=) and motion variants for the
+// rows (?r=), switched with the bar at the bottom. The choice sticks for the tab, so hops keep it. Not for main: the
+// chosen variants get built properly.
+const GROUPS = [
+  ["g", "Peek", [["now", "Now"], ["sheet", "Sheet"], ["swipe", "Swipe"]]],
+  ["r", "Rows", [["now", "Now"], ["stack", "Stack"], ["deal", "Deal"]]],
+] as const;
 ---
 
 <script is:inline>
   (() => {
-    const q = new URLSearchParams(location.search).get("g");
-    if (q) sessionStorage.setItem("proto:g", q);
-    document.documentElement.dataset.g = q || sessionStorage.getItem("proto:g") || "sheet";
+    const q = new URLSearchParams(location.search);
+    for (const [k, def] of [["g", "swipe"], ["r", "stack"]]) {
+      if (q.get(k)) sessionStorage.setItem("proto:" + k, q.get(k));
+      document.documentElement.dataset[k] = q.get(k) || sessionStorage.getItem("proto:" + k) || def;
+    }
   })();
 </script>
 
-<nav class="proto-bar" aria-label="Prototype gesture variants">
-  {VARIANTS.map(([key, label]) => <a href={`?g=${key}`} data-k={key}>{label}</a>)}
+<nav class="proto-bar" aria-label="Prototype variants">
+  {GROUPS.map(([k, label, opts]) => (
+    <div class="pb-row">
+      <span class="pb-label">{label}</span>
+      {opts.map(([key, name]) => <a href={`?${k}=${key}`} data-p={k} data-k={key}>{name}</a>)}
+    </div>
+  ))}
 </nav>
 
 <script is:inline>
   for (const a of document.querySelectorAll(".proto-bar a"))
-    if (a.dataset.k === document.documentElement.dataset.g) a.setAttribute("aria-current", "true");
+    if (a.dataset.k === document.documentElement.dataset[a.dataset.p]) a.setAttribute("aria-current", "true");
+</script>
+
+<script is:inline>
+  // Stack and Deal: a card the next one has slid over is "under": its text goes and its poster dims, so the pile reads
+  // as posters only. Measured per frame while the row scrolls (prototype; the real one would use scroll-driven CSS).
+  if (/^(stack|deal)$/.test(document.documentElement.dataset.r || "")) {
+    for (const track of document.querySelectorAll(".rail > .track")) {
+      let frame = 0;
+      const mark = () => {
+        frame = 0;
+        const items = [...track.children].filter((li) => li.offsetParent);
+        items.forEach((li, i) => {
+          const next = items[i + 1];
+          const under = next && next.getBoundingClientRect().left < li.getBoundingClientRect().right - 24;
+          li.toggleAttribute("data-under", !!under);
+        });
+      };
+      track.addEventListener("scroll", () => (frame ||= requestAnimationFrame(mark)), { passive: true });
+      addEventListener("resize", mark);
+      document.addEventListener("change", () => requestAnimationFrame(mark));
+      mark();
+    }
+  }
 </script>
 
 <style is:global>
   .proto-bar {
-    position: fixed; z-index: 50; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); translate: -50% 0;
-    display: flex; gap: 2px; padding: 4px; border-radius: 999px; border: 1px solid var(--pill-line); white-space: nowrap;
-    background: rgb(7 8 12 / 0.85); backdrop-filter: blur(12px); box-shadow: var(--shadow-2); font-size: 13px;
+    position: fixed; z-index: 50; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); translate: -50% 0;
+    display: grid; gap: 2px; padding: 4px; border-radius: 14px; border: 1px solid var(--pill-line); white-space: nowrap;
+    background: rgb(7 8 12 / 0.88); backdrop-filter: blur(12px); box-shadow: var(--shadow-2); font-size: 13px;
   }
-  .proto-bar a { padding: 8px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; }
+  .pb-row { display: flex; align-items: center; gap: 2px; }
+  .pb-label { width: 44px; padding-left: 8px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .proto-bar a { padding: 6px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; }
   .proto-bar a[aria-current] { background: var(--accent); color: var(--bg); font-weight: 600; }
-  main { padding-bottom: 72px; }
+  main { padding-bottom: 100px; }
+
+  /* ---------- rows: Stack (cards pile up at the left edge) and Deal (each card slides right over the last) ---------- */
+  html:is([data-r="stack"], [data-r="deal"]) .rail { --fade-l: 0px; }
+  html:is([data-r="stack"], [data-r="deal"]) .rail > .track { scroll-snap-type: x proximity; }
+  html:is([data-r="stack"], [data-r="deal"]) .rail > .track > li {
+    position: sticky; background: var(--bg);
+    box-shadow: -14px 0 22px -10px rgb(0 0 0 / 0.9);
+  }
+  html:is([data-r="stack"], [data-r="deal"]) .rail > .track > li :is(.poster, .poster-ph) { transition: filter 0.25s var(--ease), scale 0.25s var(--ease); }
+  html:is([data-r="stack"], [data-r="deal"]) .rail > .track > li > a > :not(:first-child) { transition: opacity 0.2s var(--ease); }
+  html:is([data-r="stack"], [data-r="deal"]) .rail > .track > li[data-under] > a > :not(:first-child) { opacity: 0; }
+  html:is([data-r="stack"], [data-r="deal"]) .rail > .track > li[data-under] :is(.poster, .poster-ph) { filter: brightness(0.55); scale: 0.96; }
+  /* Stack: the first few leave an edge showing, so it reads as a pile; the rest land on top of it. */
+  html[data-r="stack"] .rail > .track > li { left: calc(var(--gutter) + min(var(--i, 0), 4) * 7px); }
+  /* Deal: every card lands on the same spot, tilted as it comes in and flat as it lands. */
+  html[data-r="deal"] .rail > .track > li { left: var(--gutter); }
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      html[data-r="deal"] .rail > .track > li {
+        animation: p-deal linear both; animation-timeline: view(inline); animation-range: entry 0% entry 100%;
+        transform-origin: 0 100%;
+      }
+      @keyframes p-deal { from { rotate: 7deg; translate: 0 -10px; } }
+    }
+  }
 </style>
