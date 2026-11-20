@@ -298,7 +298,11 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .h-text { min-width: 0; overflow-wrap: anywhere; }
   .h-text .muted { margin: 0; }
   /* Where to watch: the one link off the site, so it says where it goes and points out of the page. */
-  .watch { grid-column: 1 / -1; justify-self: start; max-width: 100%; font: var(--label-weight) var(--text-sm) var(--font-label); }
+  /* A button to tap, not a fact: taller and roomier than the fact pills. */
+  .watch {
+    grid-column: 1 / -1; justify-self: start; max-width: 100%; min-height: 40px; padding: 0 var(--space-4); gap: var(--space-2);
+    font: var(--label-weight) var(--text-sm) var(--font-label);
+  }
   @media (min-width: 720px) { .watch { grid-column: 2; } }
   .watch:hover { border-color: var(--accent); }
   .watch :global(.icon:first-child) { color: var(--accent); }
