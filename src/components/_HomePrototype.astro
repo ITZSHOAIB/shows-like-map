@@ -1,0 +1,328 @@
+---
+// PROTOTYPE (home-prototype branch, #4), throwaway: three home pages that disagree on the way in, switchable with
+// ?variant=A|B|C or the bar at the top. All three search the real catalogue (search-prototype.json).
+//   A  Ask:    one big search box; most visitors arrive with a show in mind (NN/g: over half go straight to search).
+//   B  Wall:   recognise, don't recall: a wall of posters that typing narrows in place.
+//   C  Budget: commitment first: how much time you have, then the show you loved; the show page opens pre-filtered.
+import Icon from "./Icon.astro";
+import { loadCatalogue, type Show } from "../lib/catalogue";
+import { isFinished } from "../lib/filters";
+
+const catalogue = loadCatalogue(); // most popular first
+// Starters picked by hand: well known, mostly finished, a spread of languages, and two Indian shows (global first,
+// India next). The catalogue's own order starts with long kids' cartoons, which don't sell "one you'll finish".
+const PICKS = [
+  "Breaking Bad|2008", "Dark|2017", "Squid Game|2021", "Panchayat|2020", "Chernobyl|2019", "La Casa de Papel|2017",
+  "Fleabag|2016", "Crash Landing on You|2019", "The Office|2005", "Stranger Things|2016", "The Queen's Gambit|2020",
+  "The Railway Men: The Untold Story of Bhopal 1984|2023", "Sherlock|2010", "MINDHUNTER|2017", "Normal People|2020", "Game of Thrones|2011",
+];
+const key = (s: Show) => `${s.name}|${s.premiered?.slice(0, 4) ?? ""}`;
+const picks = PICKS.flatMap((k) => catalogue.find((s) => key(s) === k) ?? []);
+const grown = (s: Show) => !s.genres.includes("Children") && !s.genres.includes("Anime");
+const popularFinished = catalogue.filter((s) => isFinished(s) && grown(s) && s.minutes !== null);
+const wall = [...picks, ...popularFinished.filter((s) => !picks.includes(s))].slice(0, 48);
+const BUDGETS = [
+  { h: 20, label: "A few evenings", note: "under 20 h" },
+  { h: 40, label: "A couple of weeks", note: "under 40 h" },
+  { h: 80, label: "A month or so", note: "under 80 h" },
+] as const;
+// Each row holds shows between half its limit and the limit (the first, everything under 20 h), picks first.
+const fits = (h: number) => (s: Show) => isFinished(s) && s.minutes !== null && s.minutes < h * 60 && (h === 20 || s.minutes >= (h / 2) * 60);
+const rowFor = (h: number) => [...new Set([...picks.filter(fits(h)), ...popularFinished.filter(fits(h))])].slice(0, 12);
+
+const STATUS: Record<string, string> = { running: "Ongoing", ended: "Ended", cancelled: "Cancelled", uncertain: "Unclear", upcoming: "Upcoming" };
+const year = (s: Show) => s.premiered?.slice(0, 4) ?? "";
+const hrs = (s: Show) => (s.minutes === null ? "" : `${Math.round(s.minutes / 60)} h`);
+---
+
+<div class="proto">
+  <!-- A · Ask -->
+  <section class="v vA wrap" aria-labelledby="a-title">
+    <h1 id="a-title" class="a-title">Loved a show?<br /><span>Find the next one you'll actually finish.</span></h1>
+    <form class="search a-search" role="search" data-results="a-results" data-limit="6" data-style="list">
+      <label for="a-q" class="sr-only">Search for a show you loved</label>
+      <Icon name="magnifying-glass" />
+      <input id="a-q" name="q" type="search" placeholder="A show you loved, like Breaking Bad" autocomplete="off" enterkeyhint="go" />
+    </form>
+    <ul id="a-results" class="results list" aria-live="polite"></ul>
+    <div class="a-empty">
+      <p class="muted small">Try</p>
+      <ul class="chips">
+        {picks.slice(0, 6).map((s) => <li><a class="pill" href={`/shows/${s.slug}/`}>{s.name}</a></li>)}
+      </ul>
+      <ul class="promise">
+        <li><Icon name="check-circle" /> <span><b>Ended, ongoing or cancelled</b>, so you know if it has an ending</span></li>
+        <li><Icon name="hourglass-medium" /> <span><b>Hours to finish</b>, before you start</span></li>
+        <li><Icon name="sparkle" /> <span><b>Why it's alike</b>, in one line, for every match</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- B · Wall -->
+  <section class="v vB" aria-labelledby="b-title">
+    <div class="b-bar wrap">
+      <h1 id="b-title" class="b-title">Tap one you loved. <span>We'll find the next one you'll finish.</span></h1>
+      <form class="search b-search" role="search" data-results="b-results" data-limit="18" data-style="tiles">
+        <label for="b-q" class="sr-only">Search for a show you loved</label>
+        <Icon name="magnifying-glass" />
+        <input id="b-q" name="q" type="search" placeholder="Not here? Type its name" autocomplete="off" enterkeyhint="search" />
+      </form>
+    </div>
+    <ul id="b-results" class="results tiles wrap" aria-live="polite"></ul>
+    <ul class="tiles b-wall wrap">
+      {wall.map((s) => (
+        <li><a class="tile" href={`/shows/${s.slug}/`}>
+          {s.poster ? <img class="poster" src={s.poster} alt="" loading="lazy" width="210" height="295" /> : <span class="poster-ph">{s.name}</span>}
+          <span class="t-name">{s.name}</span>
+          <span class="t-meta">{STATUS[s.status]}{hrs(s) && ` · ${hrs(s)}`}</span>
+        </a></li>
+      ))}
+    </ul>
+  </section>
+
+  <!-- C · Budget -->
+  <section class="v vC wrap" aria-labelledby="c-title">
+    <h1 id="c-title" class="c-title">Find a show you'll <span>actually finish</span>.</h1>
+    <form class="c-form" id="c-form">
+      <fieldset>
+        <legend>How much time have you got?</legend>
+        <div class="c-budgets">
+          {BUDGETS.map((b, i) => (
+            <label class="c-budget"><input type="radio" name="hours" value={b.h} checked={i === 0} /><b>{b.label}</b><span>{b.note}</span></label>
+          ))}
+        </div>
+      </fieldset>
+      <label class="pill f-chip c-fin"><input type="checkbox" name="finished" checked /><Icon name="check-circle" /> Only finished shows</label>
+    </form>
+    <h2 class="c-h2">And a show you loved?</h2>
+    <form class="search c-search" role="search" data-results="c-results" data-limit="5" data-style="list" data-filters="c-form">
+      <label for="c-q" class="sr-only">Search for a show you loved</label>
+      <Icon name="magnifying-glass" />
+      <input id="c-q" name="q" type="search" placeholder="Its name" autocomplete="off" enterkeyhint="go" />
+    </form>
+    <ul id="c-results" class="results list" aria-live="polite"></ul>
+    <h2 class="c-h2">Or start with one that fits</h2>
+    {BUDGETS.map((b) => (
+      <ul class="tiles c-row" data-h={b.h}>
+        {rowFor(b.h).map((s) => (
+          <li><a class="tile" href={`/shows/${s.slug}/`}>
+            {s.poster ? <img class="poster" src={s.poster} alt="" loading="lazy" width="210" height="295" /> : <span class="poster-ph">{s.name}</span>}
+            <span class="t-name">{s.name}</span>
+            <span class="t-meta">{hrs(s)} · {year(s)}</span>
+          </a></li>
+        ))}
+      </ul>
+    ))}
+  </section>
+
+  <nav class="proto-bar" aria-label="Prototype variants">
+    <button type="button" data-step="-1" aria-label="Previous variant">‹</button>
+    <span id="proto-label">A · Ask</span>
+    <button type="button" data-step="1" aria-label="Next variant">›</button>
+  </nav>
+</div>
+
+<script>
+  // ---- Variant switcher (prototype only) ----
+  const VARIANTS = { A: "Ask", B: "Wall", C: "Budget" } as const;
+  type V = keyof typeof VARIANTS;
+  const keys = Object.keys(VARIANTS) as V[];
+  const label = document.getElementById("proto-label")!;
+  function show(v: V) {
+    document.documentElement.dataset.v = v;
+    label.textContent = `${v} · ${VARIANTS[v]}`;
+    const url = new URL(location.href);
+    url.searchParams.set("variant", v);
+    history.replaceState(null, "", url);
+    console.log("[prototype] variant", v, VARIANTS[v]);
+  }
+  const fromUrl = new URLSearchParams(location.search).get("variant")?.toUpperCase() as V | undefined;
+  let current: V = fromUrl && fromUrl in VARIANTS ? fromUrl : "A";
+  show(current);
+  const step = (d: number) => show((current = keys[(keys.indexOf(current) + d + keys.length) % keys.length]));
+  document.querySelectorAll<HTMLButtonElement>(".proto-bar button").forEach((b) => b.addEventListener("click", () => step(Number(b.dataset.step))));
+  addEventListener("keydown", (e) => {
+    if ((e.target as Element).closest("input, textarea, [contenteditable]")) return;
+    if (e.key === "ArrowLeft") step(-1);
+    if (e.key === "ArrowRight") step(1);
+  });
+
+  // ---- Search over the real catalogue ----
+  type Row = [slug: string, name: string, year: string, status: string, hours: number | null, poster: string, also: string[]];
+  const POSTERS = "https://static.tvmaze.com/uploads/images/medium_portrait/";
+  const STATUS: Record<string, string> = { running: "Ongoing", ended: "Ended", cancelled: "Cancelled", uncertain: "Unclear", upcoming: "Upcoming" };
+  let index: Promise<{ row: Row; names: string[]; rank: number }[]> | null = null;
+  const norm = (s: string) =>
+    s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+  const load = () =>
+    (index ??= fetch("/search-prototype.json")
+      .then((r) => r.json() as Promise<Row[]>)
+      .then((rows) => rows.map((row, rank) => ({ row, rank, names: [row[1], ...row[6]].map(norm) }))));
+
+  /** Edit distance, giving up past `max`. */
+  function lev(a: string, b: string, max: number) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (Math.min(...cur) > max) return max + 1;
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  function score(q: string, name: string) {
+    if (name === q) return 100;
+    // Initials, as people shorten them (got, himym): a full match beats a name that merely starts with them.
+    if (q.length >= 3 && !q.includes(" ") && name.split(" ").map((w) => w[0]).join("") === q) return 95;
+    if (name.startsWith(q)) return 90;
+    if (name.replace(/^the /, "").startsWith(q)) return 88;
+    if ((" " + name).includes(" " + q)) return 75;
+    if (q.length >= 3 && name.includes(q)) return 60;
+    // A typo: a near miss on the name from the start of any word.
+    const tol = q.length < 4 ? 0 : q.length < 8 ? 1 : 2;
+    let best = 0;
+    for (let i = 0; tol && i < name.length; i++) {
+      if (i > 0 && name[i - 1] !== " ") continue;
+      for (const len of [q.length - 1, q.length, q.length + 1]) {
+        const d = lev(q, name.slice(i, i + len), tol);
+        if (d <= tol) best = Math.max(best, 50 - d * 10 - (i ? 5 : 0));
+      }
+    }
+    return best;
+  }
+  async function search(raw: string, limit: number) {
+    const q = norm(raw);
+    if (!q) return [];
+    return (await load())
+      .map((e) => ({ e, s: Math.max(...e.names.map((n) => score(q, n))) }))
+      .filter((x) => x.s > 0)
+      .sort((a, b) => b.s - a.s || a.e.rank - b.e.rank)
+      .slice(0, limit)
+      .map((x) => x.e.row);
+  }
+
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  const img = (r: Row, w: number) =>
+    r[5] ? `<img class="poster" src="${r[5].startsWith("http") ? r[5] : POSTERS + r[5]}" alt="" width="${w}" height="${Math.round(w * 1.5)}" loading="lazy">` : `<span class="poster-ph"></span>`;
+  const meta = (r: Row, withYear = true) => [STATUS[r[3]], r[4] !== null ? `${r[4]} h` : "", withYear ? r[2] : ""].filter(Boolean).join(" · ");
+  const also = (r: Row) => (r[6].length ? `<br><span class="small muted">Also called ${esc(r[6][0])}</span>` : "");
+  const render = {
+    list: (r: Row) => `<li><a class="hit" href="/shows/${r[0]}/">${img(r, 40)}<span><b>${esc(r[1])}</b> <span class="muted">${r[2]}</span>${also(r)}<br><span class="small muted">${meta(r, false)}</span></span></a></li>`,
+    tiles: (r: Row) => `<li><a class="tile" href="/shows/${r[0]}/">${img(r, 210)}<span class="t-name">${esc(r[1])}</span><span class="t-meta">${meta(r)}</span></a></li>`,
+  };
+
+  document.querySelectorAll<HTMLFormElement>("form.search").forEach((form) => {
+    const input = form.querySelector("input")!;
+    const out = document.getElementById(form.dataset.results!)!;
+    const limit = Number(form.dataset.limit);
+    const style = form.dataset.style as keyof typeof render;
+    const filters = form.dataset.filters ? (document.getElementById(form.dataset.filters) as HTMLFormElement) : null;
+    let seq = 0;
+    input.addEventListener("focus", load, { once: true });
+    input.addEventListener("input", async () => {
+      const mine = ++seq;
+      const q = input.value;
+      const rows = await search(q, limit);
+      if (mine !== seq) return;
+      form.closest(".v")!.classList.toggle("typing", q.trim() !== "");
+      out.innerHTML = rows.length ? rows.map(render[style]).join("") : q.trim() ? `<li class="none muted">No show called “${esc(q)}” yet. We have ${(await load()).length.toLocaleString()} shows so far.</li>` : "";
+      console.log("[prototype] search", JSON.stringify(q), "→", rows.map((r) => `${r[1]} (${r[2]})`));
+    });
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      out.querySelector<HTMLAnchorElement>("a")?.click();
+    });
+    // C: the time chosen goes with you, as the show page's filters for this tab.
+    if (filters)
+      out.addEventListener("click", () => {
+        const f = new FormData(filters);
+        const saved = { finished: f.get("finished") === "on", hours: Number(f.get("hours")) };
+        try { sessionStorage.setItem("slm:filters", JSON.stringify(saved)); } catch {}
+        console.log("[prototype] filters carried to the show page", saved);
+      });
+  });
+</script>
+
+<style is:global>
+  /* Which variant shows: A without JavaScript. */
+  .proto .v { display: none; }
+  html:not([data-v]) .vA, html[data-v="A"] .vA, html[data-v="B"] .vB, html[data-v="C"] .vC { display: block; }
+
+  .proto .small { font-size: var(--text-sm); }
+  .proto h1 { font: var(--display-weight) var(--text-xl)/1.05 var(--font-display); letter-spacing: var(--display-tracking); margin: 0; }
+  .proto h1 span { color: var(--accent); }
+
+  /* The search box, one style for all three: 16px text so iPhones don't zoom in on focus. */
+  .proto .search { position: relative; display: flex; align-items: center; }
+  .proto .search > .icon { position: absolute; left: 14px; color: var(--muted); width: 20px; height: 20px; pointer-events: none; }
+  .proto .search input {
+    width: 100%; min-height: 52px; padding: 0 var(--space-4) 0 44px; font: 500 16px var(--font-body); color: var(--text);
+    background: color-mix(in srgb, #fff 7%, var(--bg)); border: 1px solid var(--line); border-radius: var(--radius-media);
+  }
+  .proto .search input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  .proto .search input::placeholder { color: var(--muted); }
+
+  .proto .results { list-style: none; margin: var(--space-2) 0 0; padding-left: 0; padding-right: 0; }
+  .proto .results:empty { display: none; }
+  .proto .results.list .hit { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-2); border-radius: var(--radius-media); }
+  .proto .results.list .hit:hover, .proto .results.list .hit:focus-visible { background: var(--surface); }
+  .proto .results.list .hit .poster, .proto .results.list .hit .poster-ph { width: 40px; flex: none; }
+  .proto .results .none { padding: var(--space-3) var(--space-2); }
+  .proto .chips { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; }
+
+  .proto .tiles { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--space-4) var(--space-3); padding: 0; margin: 0 auto; }
+  .proto .tiles.wrap { padding-left: var(--gutter); padding-right: var(--gutter); }
+  .proto .tile { display: grid; gap: 2px; }
+  .proto .tile .poster { margin-bottom: var(--space-1); box-shadow: var(--shadow-1); }
+  .proto .t-name { font-weight: 600; font-size: var(--text-sm); line-height: 1.25; }
+  .proto .t-meta { font-size: var(--text-xs); color: var(--muted); }
+
+  /* A: the box is the page. */
+  .vA { padding-top: 12vh; padding-bottom: var(--space-8); max-width: 640px; }
+  .vA .a-title { margin-bottom: var(--space-6); }
+  .vA .a-title span { display: inline-block; margin-top: var(--space-2); font-size: 0.5em; line-height: 1.15; }
+  .vA .a-empty { margin-top: var(--space-6); }
+  .vA.typing .a-empty { display: none; }
+  .vA .a-empty .small { margin: 0 0 var(--space-2); }
+  .vA .promise { list-style: none; display: grid; gap: var(--space-3); margin: var(--space-8) 0 0; padding: 0; color: var(--muted); }
+  .vA .promise li { display: flex; gap: var(--space-3); align-items: flex-start; }
+  .vA .promise .icon { color: var(--accent); margin-top: 2px; }
+  .vA .promise b { color: var(--text); font-weight: 600; }
+
+  /* B: posters first; the box rides along at the top. */
+  .vB .b-bar { position: sticky; top: 0; z-index: 2; padding-top: var(--space-3); padding-bottom: var(--space-3); background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); }
+  .vB .b-title { font-size: var(--text-lg); margin-bottom: var(--space-3); }
+  .vB .b-title span { color: var(--muted); font-weight: 500; font-family: var(--font-body); font-size: var(--text-sm); display: block; margin-top: 2px; letter-spacing: 0; }
+  .vB .b-search input { min-height: 44px; }
+  .vB.typing .b-wall { display: none; }
+  .vB .b-wall, .vB .results { padding-top: var(--space-3); padding-bottom: var(--space-8); }
+
+  /* C: the time you have comes first. */
+  .vC { padding-top: var(--space-6); padding-bottom: var(--space-8); }
+  .vC .c-form fieldset { border: 0; margin: var(--space-6) 0 0; padding: 0; }
+  .vC legend, .vC .c-h2 { font: 700 var(--text-md) var(--font-body); margin: 0 0 var(--space-3); padding: 0; }
+  .vC .c-h2 { margin-top: var(--space-8); }
+  .vC .c-budgets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+  .vC .c-budget {
+    display: grid; gap: 2px; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-media);
+    background: var(--surface); cursor: pointer; font-size: var(--text-sm);
+  }
+  .vC .c-budget input { position: absolute; opacity: 0; }
+  .vC .c-budget span { color: var(--muted); font-size: var(--text-xs); }
+  .vC .c-budget:has(:checked) { border-color: var(--accent); background: var(--pill-on-bg); }
+  .vC .c-budget:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .vC .c-fin { margin-top: var(--space-3); min-height: 32px; cursor: pointer; }
+  .vC .c-fin input { position: absolute; opacity: 0; }
+  .vC .c-row { display: none; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 112px; overflow-x: auto; padding-bottom: var(--space-2); }
+  .vC:has([value="20"]:checked) .c-row[data-h="20"], .vC:has([value="40"]:checked) .c-row[data-h="40"], .vC:has([value="80"]:checked) .c-row[data-h="80"] { display: grid; }
+
+  /* The prototype's own bar: at the top, out of the keyboard's way, and gone while typing. */
+  .proto-bar {
+    position: fixed; top: 10px; right: 10px; z-index: 50; display: flex; align-items: center; gap: 4px; padding: 4px;
+    background: #fff; color: #000; border-radius: 999px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.5); font: 700 12px system-ui, sans-serif;
+  }
+  .proto-bar button { width: 28px; height: 28px; border: 0; border-radius: 999px; background: #eee; color: #000; font: 700 16px system-ui; cursor: pointer; }
+  .proto-bar span { padding: 0 6px; }
+  html:has(.proto input:focus) .proto-bar { display: none; }
+</style>
