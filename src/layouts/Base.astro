@@ -51,11 +51,18 @@ const large = largeImage || !image;
         <Icon name="bookmark-simple" /> Kept <span class="kept-n" id="kept-n"></span>
       </a>
       <script is:inline>
-        function countKept() {
+        function countKept(e) {
           let n = 0;
           try { const list = JSON.parse(localStorage.getItem("slm:kept") || "[]"); n = Array.isArray(list) ? list.length : 0; } catch {}
-          document.getElementById("kept-link").hidden = n === 0;
+          const link = document.getElementById("kept-link");
+          const was = link.hidden ? 0 : Number(document.getElementById("kept-n").textContent);
+          link.hidden = n === 0;
           document.getElementById("kept-n").textContent = n;
+          // Kept one just now, on this page: the pill arrives, or its count bumps.
+          if (e && e.type === "slm:kept" && n > was) {
+            link.classList.remove("bump");
+            requestAnimationFrame(() => link.classList.add("bump"));
+          }
         }
         countKept();
         // Kept here ("slm:kept" from the page's own script), in another tab ("storage"), or before a Back.
@@ -82,6 +89,8 @@ const large = largeImage || !image;
   .kept-link:hover, .kept-link[aria-current] { border-color: var(--accent); }
   .kept-link :global(.icon) { color: var(--accent); }
   .kept-n { font-weight: 700; font-variant-numeric: var(--nums); }
+  .kept-link.bump { animation: kept-bump 0.5s var(--spring); }
+  @keyframes kept-bump { 0% { scale: 0.8; border-color: var(--accent); } 45% { scale: 1.12; border-color: var(--accent); } 100% { scale: 1; } }
   .foot { padding-top: var(--space-8); padding-bottom: var(--space-8); font-size: var(--text-xs); }
   .foot :global(p) { margin: var(--space-1) 0; }
   .foot :global(a) { text-decoration: underline; text-underline-offset: 2px; }

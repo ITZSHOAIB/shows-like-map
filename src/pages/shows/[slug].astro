@@ -3,6 +3,7 @@
 import Icon from "../../components/Icon.astro";
 import MatchCard from "../../components/MatchCard.astro";
 import Peek from "../../components/Peek.astro";
+import Rail from "../../components/Rail.astro";
 import Base from "../../layouts/Base.astro";
 import { hours, loadCatalogue, STATUS_LABEL, type Show, type Status } from "../../lib/catalogue";
 import { filterAttrs, HOUR_LIMITS } from "../../lib/filters";
@@ -188,9 +189,11 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
               </p>
             </>)}
             {/* role="list" because Safari drops list semantics under list-style: none. */}
-            <ul class="track" role="list" aria-labelledby="matches-title">
-              {matches.map((m, i) => <li {...filterAttrs(m.show)}><MatchCard match={m.match} show={m.show} eager={i < 3} /></li>)}
-            </ul>
+            <Rail>
+              <ul class="track" role="list" aria-labelledby="matches-title">
+                {matches.map((m, i) => <li {...filterAttrs(m.show)} style={`--i: ${i}`}><MatchCard match={m.match} show={m.show} eager={i < 3} /></li>)}
+              </ul>
+            </Rail>
             {linked && <p class="peek-hint wrap" id="peek-hint" hidden><Icon name="hand-tap" /> Hold a poster to peek</p>}
             {linked && <p class="sr-only" id="filters-status" aria-live="polite"></p>}
           </section>
@@ -199,9 +202,11 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
             <section class="row further" aria-labelledby="further-title">
               <h2 class="wrap"><Icon name="arrows-out" /> <span id="further-title">A step further out</span></h2>
               <p class="wrap muted small f-note">Not on {show.name}'s list, but on the lists of the shows that are. Same filters.</p>
-              <ul class="track" role="list" aria-labelledby="further-title">
-                {further.map((f) => <li {...filterAttrs(f.show)}><MatchCard match={{ ...f.match, why: `Via ${f.via}. ${f.match.why}` }} show={f.show} /></li>)}
-              </ul>
+              <Rail>
+                <ul class="track" role="list" aria-labelledby="further-title">
+                  {further.map((f, i) => <li {...filterAttrs(f.show)} style={`--i: ${i}`}><MatchCard match={{ ...f.match, why: `Via ${f.via}. ${f.match.why}` }} show={f.show} /></li>)}
+                </ul>
+              </Rail>
             </section>
           )}
         </div>
@@ -232,6 +237,8 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
     keep.addEventListener("click", () => {
       writeKept(toggled(readKept(), slug));
       const on = showKept();
+      keep.classList.remove("pop");
+      if (on) requestAnimationFrame(() => keep.classList.add("pop"));
       keepStatus.textContent = on ? "Kept. Your list is at the top of the page." : "Taken off your list.";
       dispatchEvent(new Event("slm:kept"));
     });
@@ -324,6 +331,14 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
     padding-top: var(--space-2); padding-bottom: var(--space-6);
   }
   @media (min-width: 720px) { .hero-in { grid-template-columns: 210px minmax(0, 1fr); gap: var(--space-4) var(--space-8); } }
+  /* A wide screen has the room: the poster runs the hero's height and the text sits centred beside it, not low under a gap. */
+  @media (min-width: 1024px) {
+    .hero-in { grid-template-columns: 260px minmax(0, 1fr); grid-template-rows: 1fr auto auto auto 1fr; gap: var(--space-4) var(--space-8); padding-bottom: var(--space-8); }
+    .h-poster { grid-row: 1 / -1; width: 260px; height: auto; }
+    .h-text { grid-row: 2; }
+    .acts { grid-row: 3; }
+    .about { grid-row: 4; }
+  }
 
   .trail {
     display: flex; align-items: center; gap: var(--space-2); overflow-x: auto; scrollbar-width: none;
@@ -359,6 +374,8 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
   .keep :global(.icon) { color: var(--accent); }
   .keep.on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
   .keep.on :global(.icon) { color: var(--bg); }
+  .keep.pop :global(.icon) { animation: keep-pop 0.42s var(--spring); }
+  @keyframes keep-pop { 0% { scale: 1; } 40% { scale: 1.45; rotate: -8deg; } 100% { scale: 1; rotate: 0deg; } }
   @media (forced-colors: active) {
     .keep.on { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
     .keep.on :global(.icon) { color: HighlightText; }

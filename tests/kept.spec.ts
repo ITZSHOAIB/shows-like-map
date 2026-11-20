@@ -33,7 +33,7 @@ test("the list shows kept shows newest first, and Remove takes one off and keeps
   await expect(page.locator("#k-tiles li")).toHaveCount(3);
   expect(await names(page)).toEqual(["Breaking Bad", "Dark", "Fleabag"]);
   await page.getByRole("button", { name: "Remove Dark" }).click();
-  expect(await names(page)).toEqual(["Breaking Bad", "Fleabag"]);
+  await expect(page.locator("#k-tiles .t-name")).toHaveText(["Breaking Bad", "Fleabag"]); // after the tiles slide
   await expect(page.getByRole("button", { name: "Remove Fleabag" })).toBeFocused();
   await expect(page.locator("#k-note")).toHaveText(/^Removed Dark\./);
   await expect(header(page)).toHaveText(/Kept\s*2/);
