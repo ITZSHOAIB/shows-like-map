@@ -18,6 +18,8 @@ async function lowestContrast(el: Locator) {
     el.evaluate((e, on) => {
       const s = (e as HTMLElement).style;
       s.color = s.borderColor = on ? "transparent" : "";
+      // Text nested in its own colour (the tagline's gold half) is hidden too, and checked as an element of its own.
+      e.querySelectorAll<HTMLElement>("*").forEach((c) => (c.style.color = on ? "transparent" : ""));
       e.querySelectorAll("svg").forEach((svg) => (svg.style.visibility = on ? "hidden" : ""));
     }, on);
   await hide(true);
@@ -63,3 +65,18 @@ for (const show of SHOWS) {
     expect(low).toEqual([]);
   });
 }
+
+test("the home page's tagline keeps 4.5:1 over its posters", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  const low: string[] = [];
+  for (const sel of [".hero .eyebrow", ".hero h1", ".hero h1 span", ".promise li"]) {
+    // The gold half wraps mid-line, so its box takes in white words too: hide those while it's measured.
+    await page.locator(".hero h1").evaluate((h, gold) => (h.style.color = gold ? "transparent" : ""), sel === ".hero h1 span");
+    for (const el of await page.locator(sel).all()) {
+      const ratio = await lowestContrast(el);
+      if (ratio < 4.5) low.push(`${sel} "${(await el.textContent())?.trim()}": ${ratio.toFixed(2)}`);
+    }
+  }
+  expect(low).toEqual([]);
+});

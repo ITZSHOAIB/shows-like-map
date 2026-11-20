@@ -5,8 +5,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"];
 
-// One page per state: linked matches, only unlinked matches (Planet Earth), a white poster, and the 404.
-const PAGES = ["/shows/breaking-bad/", "/shows/planet-earth/", "/shows/the-office-2001/", "/missing-page/"];
+// One page per state: the home page, linked matches, only unlinked matches (Planet Earth), a white poster, and the 404.
+const PAGES = ["/", "/shows/breaking-bad/", "/shows/planet-earth/", "/shows/the-office-2001/", "/missing-page/"];
 
 async function openSummary(page: Page) {
   const toggle = page.locator(".about summary");
@@ -99,4 +99,14 @@ test("forced colours keep focus rings, badges and path chips visible", async ({ 
   await page.keyboard.press("Shift+Tab");
   await page.keyboard.press("Tab");
   await expect(card.locator(".poster")).toHaveCSS("outline-style", "solid");
+});
+
+test("axe and no sideways scroll at 320px on the home page, with a time chosen and search results showing", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/");
+  await page.locator("#time .f-chip", { hasText: "40 h" }).click();
+  await page.locator("#q").fill("the office");
+  await expect(page.locator("#results .tile").first()).toBeVisible();
+  expect((await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
