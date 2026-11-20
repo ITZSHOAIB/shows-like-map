@@ -36,7 +36,7 @@ const { title, description, path } = Astro.props;
 </html>
 
 <style>
-  .top { display: flex; align-items: center; height: 56px; }
+  .top { position: relative; z-index: 1; display: flex; align-items: center; height: 56px; }
   .brand { display: inline-flex; align-items: center; gap: 6px; font: 800 18px var(--font-display); letter-spacing: -0.02em; }
   .brand :global(.icon) { color: var(--accent); width: 24px; height: 24px; }
   .brand span { color: var(--accent); }

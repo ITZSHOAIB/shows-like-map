@@ -34,7 +34,10 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
 
 <Base title={`Shows like ${show.name} | Shows Like Map`} {description} path={`/shows/${show.slug}/`}>
   <main>
-    <section class="hero wrap">
+    <section class="hero">
+      {/* The poster, blurred and faded, as the backdrop: no extra download, and every show has one (TVmaze backgrounds are 0.5 MB originals). */}
+      {show.poster && <img class="backdrop" src={show.poster} alt="" aria-hidden="true" />}
+      <div class="hero-in wrap">
       {
         show.poster ? (
           <img class="poster h-poster" src={show.poster} alt={`${show.name} poster`} width="210" height="295" fetchpriority="high" />
@@ -55,15 +58,22 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
           {show.seasons} {show.seasons === 1 ? "season" : "seasons"} · {show.episodes} episodes{show.language && <> · {show.language}</>}
         </p>
       </div>
-      {show.summary && <p class="summary">{show.summary}</p>}
+      {/* Three lines of summary keep the matches near the top; tapping opens the rest and the people. */}
       {
-        (show.creators.length > 0 || show.cast.length > 0) && (
-          <dl class="people small">
-            {show.creators.length > 0 && <><dt>Created by</dt><dd>{show.creators.join(", ")}</dd></>}
-            {show.cast.length > 0 && <><dt>Starring</dt><dd>{show.cast.join(", ")}</dd></>}
-          </dl>
+        (show.summary || show.creators.length > 0 || show.cast.length > 0) && (
+          <details class="about">
+            <summary>
+              {show.summary && <span class="summary">{show.summary}</span>}
+              <span class="more">More</span>
+            </summary>
+            <dl class="people small">
+              {show.creators.length > 0 && <><dt>Created by</dt><dd>{show.creators.join(", ")}</dd></>}
+              {show.cast.length > 0 && <><dt>Starring</dt><dd>{show.cast.join(", ")}</dd></>}
+            </dl>
+          </details>
         )
       }
+      </div>
     </section>
 
     {
@@ -98,8 +108,16 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
 
 <style>
   .small { font-size: 13px; }
-  .hero { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px 16px; align-items: end; padding-top: 8px; padding-bottom: 24px; }
-  @media (min-width: 720px) { .hero { grid-template-columns: 210px minmax(0, 1fr); gap: 16px 28px; } }
+  .hero { position: relative; isolation: isolate; overflow: hidden; margin-top: -56px; padding-top: 64px; }
+  .backdrop {
+    position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover;
+    /* Darkened so white posters don't wash out the text; faded out well before the hero ends so there's no edge. */
+    filter: blur(28px) saturate(1.3) brightness(0.7); opacity: 0.55; transform: scale(1.3);
+    mask-image: linear-gradient(to bottom, #000 25%, transparent 85%);
+  }
+  @media (prefers-color-scheme: light) { .backdrop { filter: blur(28px) saturate(1.3); opacity: 0.35; } }
+  .hero-in { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px 16px; align-items: end; padding-top: 8px; padding-bottom: 24px; }
+  @media (min-width: 720px) { .hero-in { grid-template-columns: 210px minmax(0, 1fr); gap: 16px 28px; } }
   .h-poster { box-shadow: 0 20px 50px rgb(0 0 0 / 0.55); }
   .eyebrow { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; color: var(--accent); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; }
   h1 { font-size: clamp(28px, 6.5vw, 56px); line-height: 1.02; font-weight: 800; }
@@ -111,10 +129,15 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   .facts .badge { border-color: color-mix(in srgb, var(--s) 45%, transparent); background: color-mix(in srgb, var(--s) 12%, transparent); }
   .h-text { min-width: 0; overflow-wrap: anywhere; }
   .h-text .muted { margin: 0; }
-  .summary { grid-column: 1 / -1; min-width: 0; margin: 4px 0 0; max-width: 65ch; }
-  @media (min-width: 720px) { .summary { grid-column: 2; } }
-  .people { grid-column: 1 / -1; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 0; }
-  @media (min-width: 720px) { .people { grid-column: 2; } }
+  .about { grid-column: 1 / -1; min-width: 0; max-width: 65ch; }
+  @media (min-width: 720px) { .about { grid-column: 2; } }
+  .about summary { list-style: none; cursor: pointer; }
+  .about summary::-webkit-details-marker { display: none; }
+  .summary { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .about[open] .summary { display: block; }
+  .more { display: inline-block; margin-top: 2px; color: var(--accent); font-size: 13px; font-weight: 600; }
+  .about[open] .more { display: none; }
+  .people { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 10px 0 0; }
   .people dt { color: var(--muted); }
   .people dd { margin: 0; }
 
