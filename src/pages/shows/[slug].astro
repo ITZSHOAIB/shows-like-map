@@ -3,6 +3,7 @@
 import Icon from "../../components/Icon.astro";
 import MatchCard from "../../components/MatchCard.astro";
 import Base from "../../layouts/Base.astro";
+import PeekPrototype, { type PeekShow } from "../../components/_PeekPrototype.astro"; // PROTOTYPE
 import { hours, loadCatalogue, STATUS_LABEL, type Show, type Status } from "../../lib/catalogue";
 import { filterAttrs, HOUR_LIMITS } from "../../lib/filters";
 import { loadMatches, type Match } from "../../lib/matches";
@@ -12,13 +13,21 @@ export function getStaticPaths() {
   const byId = new Map(catalogue.map((s) => [s.id, s]));
   // A match links to its own page when it has one; matches outside the catalogue show unlinked (decision in #2).
   const matches = loadMatches();
-  return catalogue.map((show) => ({
-    params: { slug: show.slug },
-    props: { show, matches: (matches.get(show.id) ?? []).map((m) => ({ match: m, show: byId.get(m.id) })) },
-  }));
+  // PROTOTYPE (hold-to-peek): what a held card shows, and where that show leads.
+  const peekOf = (here: Show, m: Match, s: Show): PeekShow => ({
+    name: s.name, poster: s.poster, why: m.why, summary: s.summary,
+    facts: [STATUS_LABEL[s.status], s.minutes !== null ? `${hours(s.minutes)} to finish` : "", s.premiered?.slice(0, 4) ?? "", s.platform ?? ""].filter(Boolean),
+    leads: (matches.get(s.id) ?? []).map((x) => byId.get(x.id)).filter((x): x is Show => !!x && x.id !== here.id)
+      .slice(0, 5).map((x) => ({ slug: x.slug, name: x.name, poster: x.poster })),
+  });
+  return catalogue.map((show) => {
+    const list = (matches.get(show.id) ?? []).map((m) => ({ match: m, show: byId.get(m.id) }));
+    const peek = Object.fromEntries(list.filter((m) => m.show).map((m) => [m.show!.slug, peekOf(show, m.match, m.show!)]));
+    return { params: { slug: show.slug }, props: { show, matches: list, peek } };
+  });
 }
 
-const { show, matches } = Astro.props as { show: Show; matches: { match: Match; show?: Show }[] };
+const { show, matches, peek } = Astro.props as { show: Show; matches: { match: Match; show?: Show }[]; peek: Record<string, PeekShow> };
 const year = show.premiered?.slice(0, 4);
 const STATUS_ICON: Record<Status, string> = {
   running: "broadcast",
@@ -179,6 +188,7 @@ const description = `Shows like ${show.name}, each with why it's similar, whethe
   </main>
   {/* The next show starts loading when a finger touches its card (on desktop, a short hover), and Chrome hands the
       download in flight to the navigation, so a tap shows the next page in under 300 ms (decision 0005). */}
+  {linked && <PeekPrototype data={peek} from={show.name} />}
   <script type="speculationrules" is:inline set:html={JSON.stringify({
     prefetch: [{ source: "document", where: { selector_matches: "a.card, .trail a" }, eagerness: "moderate" }],
   })} />

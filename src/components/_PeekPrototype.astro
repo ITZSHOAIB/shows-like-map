@@ -1,0 +1,309 @@
+---
+// PROTOTYPE (#3 hold-to-peek): two ways to peek at a match by holding its card, switched with ?peek=details|fan or
+// the bar at the bottom. Throwaway: remove when one is picked.
+export interface PeekLead { slug: string; name: string; poster: string | null }
+export interface PeekShow { name: string; poster: string | null; facts: string[]; why: string; summary: string | null; leads: PeekLead[] }
+interface Props { data: Record<string, PeekShow>; from: string }
+const { data, from } = Astro.props;
+---
+
+<script type="application/json" id="pk-data" set:html={JSON.stringify(data).replace(/</g, "\\u003c")} />
+
+<dialog class="pk-sheet" id="pk-sheet" aria-labelledby="pk-title">
+  <div class="pk-head">
+    <img class="pk-poster" alt="" width="96" height="144" />
+    <div>
+      <p class="eyebrow">Like {from}</p>
+      <h2 id="pk-title"></h2>
+      <ul class="pk-facts"></ul>
+    </div>
+  </div>
+  <p class="pk-why"></p>
+  <p class="pk-sum"></p>
+  <p class="eyebrow pk-leads-label">Leads to</p>
+  <ol class="pk-leads"></ol>
+  <div class="pk-actions">
+    <a class="pk-open">Open</a>
+    <button type="button" class="pk-close">Close</button>
+  </div>
+</dialog>
+
+<div class="pk-fan" id="pk-fan" hidden></div>
+
+<div class="pk-bar">
+  <b>PROTOTYPE</b> Hold a poster:
+  <a href="?peek=details" data-mode="details">Details</a>
+  <a href="?peek=fan" data-mode="fan">Fan</a>
+</div>
+
+<script>
+  type Lead = { slug: string; name: string; poster: string | null };
+  type Peek = { name: string; poster: string | null; facts: string[]; why: string; summary: string | null; leads: Lead[] };
+  const data: Record<string, Peek> = JSON.parse(document.getElementById("pk-data")!.textContent!);
+
+  const asked = new URLSearchParams(location.search).get("peek");
+  if (asked) try { sessionStorage.setItem("slm:peek", asked); } catch {}
+  let mode = "details";
+  try { mode = sessionStorage.getItem("slm:peek") === "fan" ? "fan" : "details"; } catch {}
+  document.querySelectorAll<HTMLElement>(".pk-bar a").forEach((a) => a.classList.toggle("on", a.dataset.mode === mode));
+
+  const sheet = document.getElementById("pk-sheet") as HTMLDialogElement;
+  const fan = document.getElementById("pk-fan")!;
+  const slugOf = (a: Element) => a.getAttribute("href")!.split("/")[2];
+  const page = (slug: string) => `/shows/${slug}/`;
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = "") => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  };
+  const poster = (src: string | null, name: string) => {
+    if (!src) return el("span", "poster-ph", name);
+    const img = el("img", "poster");
+    img.src = src; img.alt = ""; img.draggable = false;
+    return img;
+  };
+
+  // Jumping two levels: the show in between goes on "Your path" too, so the strip still tells the way you came.
+  const via = (slug: string) => {
+    try {
+      const path = JSON.parse(sessionStorage.getItem("slm:path") || "[]");
+      if (path.at(-1)?.slug !== slug) path.push({ slug, name: data[slug].name, poster: data[slug].poster });
+      sessionStorage.setItem("slm:path", JSON.stringify(path.slice(-12)));
+    } catch {}
+  };
+
+  // ---------- the hold ----------
+  let press: { card: HTMLAnchorElement; x: number; y: number; timer: number } | null = null;
+  let held: HTMLAnchorElement | null = null;
+  let holding = false; // the finger that opened the peek is still down
+  let releasedAt = 0;
+  let suppress = false;
+
+  const endPress = () => {
+    if (press) { clearTimeout(press.timer); press.card.classList.remove("pk-pressing"); }
+    press = null;
+  };
+  const open = (card: HTMLAnchorElement) => {
+    endPress();
+    held = card;
+    suppress = holding = true;
+    navigator.vibrate?.(10);
+    if (mode === "fan") openFan(card); else openSheet(card);
+  };
+
+  const rows = document.querySelector(".rows");
+  rows?.addEventListener("pointerdown", (e) => {
+    suppress = false;
+    const card = (e.target as Element).closest<HTMLAnchorElement>("a.card");
+    if (!card || (e as PointerEvent).button > 0 || !data[slugOf(card)]) return;
+    const p = e as PointerEvent;
+    card.classList.add("pk-pressing");
+    press = { card, x: p.clientX, y: p.clientY, timer: window.setTimeout(() => open(card), 420) };
+  });
+  addEventListener("pointermove", (e) => {
+    if (holding && !fan.hidden) aim(e.clientX, e.clientY);
+    else if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) endPress();
+  });
+  addEventListener("pointerup", () => {
+    endPress();
+    if (!holding) return;
+    holding = false;
+    releasedAt = performance.now();
+    if (hot) go(hot);
+  });
+  addEventListener("pointercancel", () => { endPress(); holding = false; });
+  // While the peek is held, the finger steers it: no scrolling underneath.
+  document.addEventListener("touchmove", (e) => { if (holding) e.preventDefault(); }, { passive: false });
+  // No long-press menu on cards; on a desktop, right-click peeks.
+  document.addEventListener("contextmenu", (e) => {
+    const card = (e.target as Element).closest?.<HTMLAnchorElement>("a.card");
+    if (!card || !data[slugOf(card)]) return;
+    e.preventDefault();
+    if (!held) open(card);
+  });
+  rows?.addEventListener("click", (e) => {
+    if (!suppress) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, { capture: true });
+  // The click from the finger that opened the peek lands on it; don't let it close it again.
+  const fresh = () => holding || performance.now() - releasedAt < 350;
+
+  // ---------- A: details sheet ----------
+  function openSheet(card: HTMLAnchorElement) {
+    const s = data[slugOf(card)];
+    const img = sheet.querySelector<HTMLImageElement>(".pk-poster")!;
+    img.hidden = !s.poster;
+    if (s.poster) img.src = s.poster;
+    sheet.querySelector("#pk-title")!.textContent = s.name;
+    sheet.querySelector(".pk-facts")!.replaceChildren(...s.facts.map((f) => el("li", "pill", f)));
+    sheet.querySelector(".pk-why")!.textContent = s.why;
+    sheet.querySelector(".pk-sum")!.textContent = s.summary ?? "";
+    sheet.querySelector<HTMLElement>(".pk-leads-label")!.hidden = !s.leads.length;
+    sheet.querySelector(".pk-leads")!.replaceChildren(...s.leads.slice(0, 4).map((l) => {
+      const li = el("li");
+      const a = el("a", "pk-lead");
+      a.href = page(l.slug);
+      a.append(poster(l.poster, l.name), el("span", "", l.name));
+      a.addEventListener("click", () => via(slugOf(card)));
+      li.append(a);
+      return li;
+    }));
+    sheet.querySelector<HTMLAnchorElement>(".pk-open")!.href = card.href;
+    sheet.showModal();
+  }
+  const closeSheet = () => { sheet.close(); };
+  sheet.addEventListener("close", () => { held = null; });
+  sheet.addEventListener("click", (e) => { if (e.target === sheet && !fresh()) closeSheet(); });
+  sheet.querySelector(".pk-close")!.addEventListener("click", closeSheet);
+  sheet.querySelector(".pk-open")!.addEventListener("click", (e) => {
+    // Through the card itself, so the poster morphs into the next hero as with a tap.
+    e.preventDefault();
+    const card = held!;
+    sheet.close();
+    suppress = false;
+    card.click();
+  });
+
+  // ---------- B: fan ----------
+  let hot: HTMLAnchorElement | null = null;
+  function openFan(card: HTMLAnchorElement) {
+    const s = data[slugOf(card)];
+    const r = card.querySelector(".poster, .poster-ph")!.getBoundingClientRect();
+    const leads = s.leads.slice(0, 5);
+    const title = el("p", "pk-fan-title");
+    title.append("Like ", el("b", "", s.name), leads.length ? " · slide onto one, or tap" : " · nothing further yet");
+    const big = poster(s.poster, s.name);
+    big.classList.add("pk-lift");
+    Object.assign(big.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px` });
+    const cards = leads.map((l) => {
+      const a = el("a", "pk-fan-card");
+      a.href = page(l.slug);
+      a.append(poster(l.poster, l.name), el("span", "", l.name));
+      return a;
+    });
+    fan.replaceChildren(title, big, ...cards);
+    fan.hidden = false;
+    document.documentElement.classList.add("pk-lock");
+
+    // An arc above the held card (below it when the card is high up), kept on screen.
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const up = cy > innerHeight * 0.45 ? -1 : 1;
+    const R = Math.min(170, innerWidth * 0.38);
+    const spread = Math.PI / 2.6;
+    const reach = R * Math.sin(spread) + 33 + 22; // half a fan card, plus room for its tilt, past the outermost one
+    const ax = Math.max(reach, Math.min(innerWidth - reach, cx));
+    const lift = r.height / 2 + 20; // the arc's ends clear the held poster
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    fan.animate([{ opacity: 0 }, { opacity: 1 }], { duration: still ? 0 : 180 });
+    cards.forEach((c, i) => {
+      const t = cards.length > 1 ? -spread + (2 * spread * i) / (cards.length - 1) : 0;
+      const x = ax + R * Math.sin(t);
+      const y = Math.max(110, Math.min(innerHeight - 150, cy + up * (lift + (R - lift / 2) * Math.cos(t) - 20)));
+      const end = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${(t * 180 / Math.PI) * 0.3 * -up}deg)`;
+      c.style.transform = end;
+      c.animate(
+        [{ transform: `translate(${cx}px, ${cy}px) translate(-50%, -50%) scale(0.3)`, opacity: 0 }, { transform: end, opacity: 1 }],
+        { duration: still ? 0 : 380, delay: still ? 0 : i * 30, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)", fill: "backwards" },
+      );
+    });
+  }
+  // The fan card nearest the finger, within reach, is the one you'd land on.
+  function aim(x: number, y: number) {
+    let best: HTMLAnchorElement | null = null, bestD = 70;
+    for (const c of fan.querySelectorAll<HTMLAnchorElement>(".pk-fan-card")) {
+      const b = c.firstElementChild!.getBoundingClientRect();
+      const d = Math.hypot(b.left + b.width / 2 - x, b.top + b.height / 2 - y);
+      if (d < bestD) { best = c; bestD = d; }
+    }
+    if (best === hot) return;
+    hot?.classList.remove("hot");
+    hot = best;
+    if (hot) { hot.classList.add("hot"); navigator.vibrate?.(6); }
+  }
+  function closeFan() {
+    hot = null;
+    held = null;
+    document.documentElement.classList.remove("pk-lock");
+    fan.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140 }).finished.then(() => { fan.hidden = true; fan.replaceChildren(); });
+  }
+  function go(c: HTMLAnchorElement) {
+    via(slugOf(held!));
+    location.href = c.href;
+  }
+  fan.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (fresh()) return;
+    const c = (e.target as Element).closest<HTMLAnchorElement>(".pk-fan-card");
+    if (c) go(c); else closeFan();
+  });
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && !fan.hidden) closeFan(); });
+</script>
+
+<style is:global>
+  /* No callout, selection or image drag on a held card. */
+  .track a.card, .track a.card * { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+  .track a.card.pk-pressing .poster { scale: 0.94; transition: scale 0.42s var(--ease); }
+  html.pk-lock { overflow: hidden; }
+
+  /* A: a sheet from the bottom on phones, a card in the middle on wide screens. */
+  .pk-sheet {
+    width: 100%; max-width: 100%; max-height: 88dvh; margin: auto 0 0; padding: var(--space-6) var(--gutter) var(--space-6);
+    border: 1px solid var(--line); border-bottom: 0; border-radius: 12px 12px 0 0; background: color-mix(in srgb, #fff 6%, var(--bg)); color: var(--text);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .pk-sheet[open] { animation: pk-up var(--slow) var(--ease); }
+  .pk-sheet::backdrop { background: rgb(0 0 0 / 0.6); }
+  @keyframes pk-up { from { translate: 0 40px; opacity: 0; } }
+  @media (min-width: 720px) { .pk-sheet { max-width: 460px; margin: auto; border-radius: 12px; border-bottom: 1px solid var(--line); } }
+  @media (prefers-reduced-motion: reduce) { .pk-sheet[open] { animation: none; } }
+  .pk-head { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-4); align-items: end; }
+  .pk-poster { width: 96px; height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-media); box-shadow: var(--shadow-1); }
+  .pk-head h2 { margin: 0; font-size: var(--text-lg); line-height: 1.1; }
+  .pk-head .eyebrow { margin: 0 0 var(--space-1); }
+  .pk-facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-2) 0 0; padding: 0; }
+  .pk-facts .pill { min-height: 24px; font-size: var(--text-xs); }
+  .pk-why { margin: var(--space-4) 0 var(--space-2); font-weight: 600; }
+  .pk-sum { margin: 0; color: var(--muted); font-size: var(--text-sm); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .pk-leads-label { margin: var(--space-6) 0 var(--space-2); }
+  .pk-leads { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding: 0; }
+  .pk-lead { display: grid; gap: var(--space-1); color: inherit; text-decoration: none; font-size: var(--text-xs); line-height: 1.2; }
+  .pk-lead span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pk-lead .poster-ph { font-size: 10px; }
+  .pk-actions { display: flex; gap: var(--space-2); margin-top: var(--space-6); }
+  .pk-actions > * {
+    flex: 1; display: inline-flex; justify-content: center; align-items: center; min-height: 44px; border-radius: var(--radius-pill);
+    font: 700 var(--text-sm) var(--font-label); text-decoration: none; cursor: pointer;
+  }
+  .pk-open { background: var(--accent); color: #17130a; border: 1px solid var(--accent); }
+  .pk-close { background: none; color: var(--text); border: 1px solid var(--line); }
+
+  /* B: the fan over a dimmed page. */
+  .pk-fan { position: fixed; inset: 0; z-index: 80; background: rgb(5 6 10 / 0.84); touch-action: none; }
+  .pk-fan[hidden] { display: none; }
+  .pk-fan img { pointer-events: none; }
+  .pk-lift { position: fixed; box-shadow: 0 0 0 2px var(--accent), var(--shadow-2); }
+  .pk-fan-title { position: fixed; left: var(--gutter); right: var(--gutter); top: 18px; margin: 0; text-align: center; font-size: var(--text-sm); }
+  .pk-fan-title b { color: var(--accent); }
+  .pk-fan-card {
+    position: fixed; left: 0; top: 0; width: 66px; display: grid; gap: 4px; text-align: center; color: var(--text);
+    text-decoration: none; font-size: 11px; line-height: 1.2;
+  }
+  .pk-fan-card span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pk-fan-card :is(.poster, .poster-ph) { box-shadow: var(--shadow-1); transition: scale var(--fast), box-shadow var(--fast); }
+  .pk-fan-card.hot :is(.poster, .poster-ph) { scale: 1.18; box-shadow: 0 0 0 2px var(--accent), var(--shadow-2); }
+  .pk-fan-card.hot span { color: var(--accent); }
+
+  /* The prototype switch. */
+  body { padding-bottom: 64px; }
+  .pk-bar {
+    position: fixed; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); translate: -50% 0; z-index: 90;
+    display: flex; align-items: center; gap: var(--space-2); padding: 6px 6px 6px var(--space-3); white-space: nowrap;
+    border: 1px solid var(--line); border-radius: var(--radius-pill); background: #111318; font-size: var(--text-xs);
+    box-shadow: var(--shadow-2);
+  }
+  .pk-bar b { color: var(--accent); letter-spacing: 0.08em; }
+  .pk-bar a { padding: 6px var(--space-3); border-radius: 4px; color: var(--text); text-decoration: none; font-weight: 600; }
+  .pk-bar a.on { background: var(--accent); color: #17130a; }
+</style>
