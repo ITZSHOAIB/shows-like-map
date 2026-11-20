@@ -10,13 +10,30 @@ const { data, from } = Astro.props;
 
 <script type="application/json" id="peek-data" set:html={JSON.stringify(data).replace(/</g, "\\u003c")} />
 <dialog class="peek" id="peek" aria-labelledby="peek-title" data-from={from}></dialog>
+<!-- PROTOTYPE (?g=sheet): the same peek as a bottom sheet you drag down to close (pure-web-bottom-sheet, scroll snap). -->
+<bottom-sheet-dialog-manager>
+  <dialog class="peek-sheet" id="peek-sheet" aria-labelledby="peek-title">
+    <bottom-sheet swipe-to-dismiss nested-scroll>
+      <div slot="snap" class="top" style="--snap: 100%"></div>
+      <div slot="snap" class="initial" style="--snap: 64%"></div>
+      <div class="sheet-body" id="peek-sheet-body"></div>
+    </bottom-sheet>
+  </dialog>
+</bottom-sheet-dialog-manager>
 
 <script>
   import type { Peek } from "../lib/peek";
+  import { registerSheetElements } from "pure-web-bottom-sheet";
+  import { readKept, toggled, writeKept } from "../lib/kept";
 
   const dialog = document.getElementById("peek") as HTMLDialogElement;
   const data: Record<string, Peek> = JSON.parse(document.getElementById("peek-data")!.textContent!);
   const from = dialog.dataset.from!;
+  // PROTOTYPE: which gesture variant (GestureProto sets it before this runs).
+  const variant = document.documentElement.dataset.g ?? "now";
+  const sheet = document.getElementById("peek-sheet") as HTMLDialogElement;
+  const box: HTMLElement = variant === "sheet" ? document.getElementById("peek-sheet-body")! : dialog;
+  if (variant === "sheet") registerSheetElements();
   const HOLD_MS = 420; // under the ~500 ms after which phones open their own long-press menu
   const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
   const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -71,6 +88,13 @@ const { data, from } = Astro.props;
     text.append(el("p", "eyebrow", `Like ${from}`), title, facts);
     head.append(posterEl(s.poster, s.name, "pk-poster"), text);
     const body: HTMLElement[] = [head, el("p", "pk-why", s.why)];
+    if (variant === "hold") {
+      const swipe = el("p", "pk-swipe");
+      swipe.setAttribute("aria-hidden", "true");
+      const kept = readKept().includes(slugOf(card));
+      swipe.append(el("span", "up", kept ? "↑ Kept already" : "↑ Slide up to keep"), el("span", "down", "↓ Down to close"));
+      body.unshift(swipe);
+    }
     if (s.summary) body.push(el("p", "pk-sum", s.summary));
     if (s.leads.length) {
       const heading = el("h3", "eyebrow pk-leads-label", "Leads to");
@@ -99,14 +123,14 @@ const { data, from } = Astro.props;
     go.autofocus = true;
     go.addEventListener("click", (e) => {
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      nameForMorph(dialog.querySelector(".pk-poster"), "prev-hero"); // the big poster becomes the next hero
+      nameForMorph(box.querySelector(".pk-poster"), "prev-hero"); // the big poster becomes the next hero
     });
     const close = el("button", "pk-close", "Close");
     close.type = "button";
     close.addEventListener("click", hide);
     actions.append(go, close);
     body.push(actions);
-    dialog.replaceChildren(...body);
+    box.replaceChildren(...body);
   }
 
   // The card's poster box and the dialog: the dialog grows out of the one into the other (and back).
@@ -124,6 +148,12 @@ const { data, from } = Astro.props;
   function show(card: HTMLAnchorElement) {
     held = card;
     fill(card);
+    if (variant === "sheet") {
+      sheet.showModal();
+      hint?.remove();
+      try { localStorage.setItem("slm:peeked", "1"); } catch {}
+      return;
+    }
     dialog.showModal();
     dialog.scrollTop = 0;
     hint?.remove();
@@ -137,6 +167,7 @@ const { data, from } = Astro.props;
     dialog.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, pseudoElement: "::backdrop" });
   }
   function hide() {
+    if (variant === "sheet") { held = null; if (sheet.open) sheet.close(); return; }
     if (!dialog.open || !held) return;
     const card = held;
     held = null;
@@ -154,7 +185,11 @@ const { data, from } = Astro.props;
   dialog.addEventListener("cancel", (e) => { e.preventDefault(); hide(); }); // Esc: shrink back, not vanish
   dialog.addEventListener("click", (e) => { if (e.target === dialog) hide(); }); // the dimmed page around it
   // Back from the next show: the page comes back as it was left, so close the peek first.
-  addEventListener("pageshow", (e) => { if (e.persisted && dialog.open) { held = null; dialog.close(); } });
+  addEventListener("pageshow", (e) => {
+    if (e.persisted && dialog.open) { held = null; dialog.close(); }
+    if (e.persisted && sheet.open) { held = null; sheet.close(); }
+  });
+  sheet.addEventListener("close", () => (held = null));
 
   // ---------- the hold ----------
   let press: { card: HTMLAnchorElement; x: number; y: number; timer: number } | null = null;
@@ -170,7 +205,9 @@ const { data, from } = Astro.props;
     if (press) { clearTimeout(press.timer); press.card.classList.remove("peek-pressing"); }
     press = null;
   };
+  let dragFrom = 0;
   const open = (card: HTMLAnchorElement) => {
+    dragFrom = press?.y ?? 0;
     endPress();
     holding = true;
     navigator.vibrate?.(10);
@@ -188,11 +225,51 @@ const { data, from } = Astro.props;
   // Moving means scrolling or dragging, not holding.
   addEventListener("pointermove", (e) => {
     if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) endPress();
+    if (holding && variant === "hold" && dialog.open) drag(e.clientY - dragFrom);
   });
+  // PROTOTYPE (?g=hold): the peek follows the finger, a little behind it; past 70px either way it's armed.
+  const ARM = 70;
+  function drag(dy: number) {
+    dialog.style.translate = "0 " + dy * 0.55 + "px";
+    const state = dy < -ARM ? "keep" : dy > ARM ? "close" : "";
+    if (state !== (dialog.dataset.swipe ?? "")) {
+      if (state) { dialog.dataset.swipe = state; navigator.vibrate?.(8); }
+      else delete dialog.dataset.swipe;
+    }
+  }
+  function settle() {
+    const state = dialog.dataset.swipe;
+    delete dialog.dataset.swipe;
+    const at = dialog.style.translate || "0 0";
+    dialog.style.translate = "";
+    if (!state) {
+      if (!still()) dialog.animate([{ translate: at }, { translate: "0 0" }], { duration: 420, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" });
+      return;
+    }
+    if (state === "keep" && held) {
+      const slug = slugOf(held);
+      if (!readKept().includes(slug)) {
+        writeKept(toggled(readKept(), slug));
+        dispatchEvent(new Event("slm:kept"));
+      }
+      const up = dialog.querySelector(".pk-swipe .up");
+      if (up) up.textContent = "✓ Kept";
+      dialog.dataset.done = "keep";
+    }
+    held = null;
+    const finish = () => { dialog.close(); delete dialog.dataset.done; dialog.getAnimations({ subtree: true }).forEach((a) => a.cancel()); };
+    if (still()) return finish();
+    const to = state === "keep" ? "0 -45vh" : "0 45vh";
+    dialog.animate([{ translate: at, opacity: 1 }, { translate: at, opacity: 1, offset: state === "keep" ? 0.35 : 0 }, { translate: to, opacity: 0 }],
+      { duration: state === "keep" ? 560 : 300, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" });
+    dialog.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, delay: state === "keep" ? 200 : 0, fill: "forwards", pseudoElement: "::backdrop" })
+      .finished.then(finish);
+  }
   const release = () => {
     endPress();
     if (!holding) return;
     holding = false;
+    if (variant === "hold" && dialog.open) settle();
     lifted = true;
     releasedAt = performance.now();
     setTimeout(() => (lifted = false), 400);
@@ -231,6 +308,24 @@ const { data, from } = Astro.props;
   }
   .peek::backdrop { background: rgb(0 0 0 / 0.72); }
   html:has(.peek[open]) { overflow: hidden; }
+
+  /* PROTOTYPE: the sheet (?g=sheet) and the drag hint (?g=hold) */
+  .peek-sheet::backdrop { background: rgb(0 0 0 / 0.6); }
+  html:has(.peek-sheet[open]) { overflow: hidden; }
+  .peek-sheet bottom-sheet {
+    --sheet-max-height: 92dvh; --sheet-border-radius: 16px; --sheet-background: color-mix(in srgb, #fff 7%, var(--bg));
+    color: var(--text);
+  }
+  .peek-sheet bottom-sheet::part(sheet) { box-shadow: 0 -12px 40px rgb(0 0 0 / 0.5); }
+  .peek-sheet bottom-sheet::part(handle) { background: rgb(255 255 255 / 0.3); width: 44px; }
+  .peek-sheet bottom-sheet:focus-visible { outline: none; }
+  .sheet-body { width: min(560px, 100%); margin: 0 auto; padding: var(--space-2) var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom)); }
+  .pk-swipe { display: flex; justify-content: space-between; margin: 0 0 var(--space-3); font-size: var(--text-xs); color: var(--muted); }
+  .pk-swipe span { padding: 2px 8px; border-radius: var(--radius-pill); border: 1px solid transparent; transition: color 0.15s, border-color 0.15s, background 0.15s; }
+  .peek[data-swipe="keep"] .pk-swipe .up, .peek[data-done="keep"] .pk-swipe .up { color: var(--bg); background: var(--accent); }
+  .peek[data-swipe="close"] .pk-swipe .down { color: var(--text); border-color: var(--line); }
+  .peek[data-swipe="keep"] { border-color: var(--accent); }
+  .peek { transition: border-color 0.15s; }
   .pk-head { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: var(--space-4); align-items: end; }
   .pk-poster { width: 110px; height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-media); box-shadow: var(--shadow-1); transform-origin: 0 0; }
   .pk-head h2 { margin: 0; font-size: var(--text-lg); line-height: 1.1; }
@@ -239,7 +334,7 @@ const { data, from } = Astro.props;
   .pk-facts .pill { min-height: 24px; font-size: var(--text-xs); }
   .pk-why { margin: var(--space-4) 0 var(--space-2); font-weight: 600; }
   .pk-sum { margin: 0; color: var(--muted); font-size: var(--text-sm); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-  .peek .pk-leads-label { margin: var(--space-6) 0 var(--space-2); }
+  :is(.peek, .sheet-body) .pk-leads-label { margin: var(--space-6) 0 var(--space-2); }
   .pk-leads { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding: 0; }
   .pk-lead { display: grid; gap: var(--space-1); color: inherit; text-decoration: none; font-size: var(--text-xs); line-height: 1.2; }
   .pk-lead span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

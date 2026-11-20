@@ -1,0 +1,37 @@
+---
+// PROTOTYPE (throwaway, branch gesture-prototype only): gesture variants for the peek, switched with ?g= and the bar at
+// the bottom. The choice sticks for the tab, so hops keep it. Not for main: the chosen variant gets built properly.
+const VARIANTS = [
+  ["now", "Now"],
+  ["sheet", "Sheet"],
+  ["hold", "Hold & drag"],
+];
+---
+
+<script is:inline>
+  (() => {
+    const q = new URLSearchParams(location.search).get("g");
+    if (q) sessionStorage.setItem("proto:g", q);
+    document.documentElement.dataset.g = q || sessionStorage.getItem("proto:g") || "sheet";
+  })();
+</script>
+
+<nav class="proto-bar" aria-label="Prototype gesture variants">
+  {VARIANTS.map(([key, label]) => <a href={`?g=${key}`} data-k={key}>{label}</a>)}
+</nav>
+
+<script is:inline>
+  for (const a of document.querySelectorAll(".proto-bar a"))
+    if (a.dataset.k === document.documentElement.dataset.g) a.setAttribute("aria-current", "true");
+</script>
+
+<style is:global>
+  .proto-bar {
+    position: fixed; z-index: 50; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); translate: -50% 0;
+    display: flex; gap: 2px; padding: 4px; border-radius: 999px; border: 1px solid var(--pill-line); white-space: nowrap;
+    background: rgb(7 8 12 / 0.85); backdrop-filter: blur(12px); box-shadow: var(--shadow-2); font-size: 13px;
+  }
+  .proto-bar a { padding: 8px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; }
+  .proto-bar a[aria-current] { background: var(--accent); color: var(--bg); font-weight: 600; }
+  main { padding-bottom: 72px; }
+</style>
