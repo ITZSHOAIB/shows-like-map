@@ -1,0 +1,42 @@
+---
+// TEMPORARY, remove before merging #19. Open any show with ?perf (it sticks for the tab), then tap through shows:
+// a box at the bottom shows how late each morph started after the finger lifted, frames dropped during it, and
+// whether the page came from the prefetch. For measuring on a real phone, where the lab can't reproduce lag.
+---
+
+<script is:inline>
+  (() => {
+    if (location.search.includes("perf")) sessionStorage.setItem("perf", "1");
+    if (!sessionStorage.getItem("perf")) return;
+    addEventListener("click", () => sessionStorage.setItem("perf:up", String(Date.now())), true);
+    addEventListener("pagereveal", (e) => {
+      const up = Number(sessionStorage.getItem("perf:up"));
+      sessionStorage.removeItem("perf:up");
+      const start = up ? Date.now() - up : null;
+      const gaps = [];
+      let last = performance.now();
+      const t0 = last;
+      const frame = (t) => {
+        gaps.push(t - last);
+        last = t;
+        if (t - t0 < 500) return requestAnimationFrame(frame);
+        const nav = performance.getEntriesByType("navigation")[0];
+        const dropped = gaps.reduce((n, g) => n + Math.max(0, Math.round(g / 16.7) - 1), 0);
+        const line = [
+          start === null ? "loaded directly" : `morph started ${start} ms after lift`,
+          `${dropped} frames dropped (worst ${Math.round(Math.max(...gaps))} ms)`,
+          `morph ${e.viewTransition ? "on" : "OFF"}`,
+          `page from ${nav.deliveryType || "network"}`,
+          `${devicePixelRatio}x screen`,
+        ].join(" · ");
+        const log = JSON.parse(sessionStorage.getItem("perf:log") || "[]").concat(line).slice(-4);
+        sessionStorage.setItem("perf:log", JSON.stringify(log));
+        const box = document.createElement("pre");
+        box.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;z-index:9;margin:0;padding:8px;border-radius:8px;background:#000d;color:#fff;font:11px/1.4 ui-monospace,monospace;white-space:pre-wrap";
+        box.textContent = log.join("\n") + "\n" + navigator.userAgent.replace(/.*?\) /, "");
+        document.body.append(box);
+      };
+      requestAnimationFrame(frame);
+    });
+  })();
+</script>
