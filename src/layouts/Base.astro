@@ -12,8 +12,9 @@ interface Props {
   image?: string; // the link preview's picture: a path on this site or an absolute URL. Without one, the site's own card
   largeImage?: boolean; // the picture is 1200x630, for the big card; a poster is small, so it gets the compact one
   jsonLd?: unknown; // structured data for the page
+  noindex?: boolean; // a page with nothing for search engines in it (the kept list)
 }
-const { title, description, path, image, largeImage, jsonLd } = Astro.props;
+const { title, description, path, image, largeImage, jsonLd, noindex } = Astro.props;
 const url = new URL(path, Astro.site);
 const picture = new URL(image ?? "/og.png", Astro.site).href;
 const large = largeImage || !image;
@@ -28,6 +29,7 @@ const large = largeImage || !image;
     <meta name="theme-color" content="#07080c" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>{title}</title>
+    {noindex && <meta name="robots" content="noindex" />}
     {description && <meta name="description" content={description} />}
     <link rel="canonical" href={url} />
     {/* Link previews (Open Graph, and Twitter's card, which other apps read too). */}
@@ -44,6 +46,23 @@ const large = largeImage || !image;
   <body>
     <header class="top wrap">
       <a href="/" class="brand"><Icon name="popcorn" /> Shows<span>Like</span>Map</a>
+      {/* The shows you've kept (src/lib/kept.ts): shown once there's one, counted before first paint. */}
+      <a href="/kept/" class="pill kept-link" id="kept-link" aria-current={path === "/kept/" ? "page" : undefined} hidden>
+        <Icon name="bookmark-simple" /> Kept <span class="kept-n" id="kept-n"></span>
+      </a>
+      <script is:inline>
+        function countKept() {
+          let n = 0;
+          try { const list = JSON.parse(localStorage.getItem("slm:kept") || "[]"); n = Array.isArray(list) ? list.length : 0; } catch {}
+          document.getElementById("kept-link").hidden = n === 0;
+          document.getElementById("kept-n").textContent = n;
+        }
+        countKept();
+        // Kept here ("slm:kept" from the page's own script), in another tab ("storage"), or before a Back.
+        addEventListener("slm:kept", countKept);
+        addEventListener("storage", (e) => e.key === "slm:kept" && countKept());
+        addEventListener("pageshow", (e) => e.persisted && countKept());
+      </script>
     </header>
     <slot />
     <footer class="foot wrap muted">
@@ -59,6 +78,10 @@ const large = largeImage || !image;
   .brand { display: inline-flex; align-items: center; gap: 6px; font: var(--display-weight) var(--text-lg) var(--font-display); letter-spacing: var(--display-tracking); text-transform: var(--display-case); }
   .brand :global(.icon) { color: var(--accent); width: 24px; height: 24px; }
   .brand span { color: var(--accent); }
+  .kept-link { margin-left: auto; gap: 6px; }
+  .kept-link:hover, .kept-link[aria-current] { border-color: var(--accent); }
+  .kept-link :global(.icon) { color: var(--accent); }
+  .kept-n { font-weight: 700; font-variant-numeric: var(--nums); }
   .foot { padding-top: var(--space-8); padding-bottom: var(--space-8); font-size: var(--text-xs); }
   .foot :global(p) { margin: var(--space-1) 0; }
   .foot :global(a) { text-decoration: underline; text-underline-offset: 2px; }

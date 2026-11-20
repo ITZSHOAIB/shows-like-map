@@ -108,7 +108,8 @@ const collage = picksIn(catalogue).filter((s) => s.poster).slice(0, 8);
     prefetch: [{ source: "document", where: { selector_matches: "a.tile" }, eagerness: "moderate" }],
   })} />
   <script>
-    import { POSTERS, prepare, search, type Entry, type Searchable } from "../lib/search";
+    import { prepare, search, type Entry, type Searchable } from "../lib/search";
+    import { tileOf } from "../lib/tile";
 
     const LIMIT = 18;
     const home = document.getElementById("home")!;
@@ -133,18 +134,9 @@ const collage = picksIn(catalogue).filter((s) => s.poster).slice(0, 8);
     input.addEventListener("focus", () => load().catch(() => {}));
 
     /** A result, built as Tile.astro builds a show on the wall. */
-    function tile([slug, name, year, status, hours, poster]: Entry) {
-      const a = document.createElement("a");
-      a.className = "tile";
-      a.href = `/shows/${slug}/`;
-      if (poster) a.append(Object.assign(new Image(210, 295), { className: "poster", src: POSTERS + poster, alt: "", decoding: "async" }));
-      else a.append(Object.assign(document.createElement("span"), { className: "poster-ph", ariaHidden: "true", textContent: name }));
-      const meta = Object.assign(document.createElement("span"), { className: `t-meta s-${status}` });
-      if (year) meta.append(Object.assign(document.createElement("span"), { className: "t-year", textContent: year }));
-      meta.append(Object.assign(document.createElement("span"), { className: "dot" }), labels[status], hours ? ` · ${hours}` : "");
-      a.append(Object.assign(document.createElement("b"), { className: "t-name", textContent: name }), meta);
+    function tile(entry: Entry) {
       const li = document.createElement("li");
-      li.append(a);
+      li.append(tileOf(entry, labels));
       return li;
     }
 

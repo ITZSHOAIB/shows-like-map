@@ -116,9 +116,15 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
           {show.seasons} {show.seasons === 1 ? "season" : "seasons"} · {show.episodes} episodes{show.language && <> · {show.language}</>}
         </p>
       </div>
-      <a class="pill watch" href={watchUrl(show.name)}>
-        <Icon name="monitor-play" /> Where to watch <span class="muted">on JustWatch</span> <Icon name="arrow-up-right" />
-      </a>
+      <div class="acts">
+        <a class="pill watch" href={watchUrl(show.name)}>
+          <Icon name="monitor-play" /> Where to watch <span class="muted">on JustWatch</span> <Icon name="arrow-up-right" />
+        </a>
+        {/* Keep it for later (src/lib/kept.ts). It needs storage, so it waits for the script. The label says what it is
+            ("Keep", "Kept"), and the status line says what a tap did. */}
+        <button class="pill keep" id="keep" type="button" data-slug={show.slug} hidden><Icon name="bookmark-simple" /> <span>Keep</span></button>
+        <p class="sr-only" id="keep-status" aria-live="polite"></p>
+      </div>
       {/* Three lines of summary keep the matches near the top; the toggle opens the rest and the people. The text sits
           outside <summary> so screen readers hear a short button, not the whole summary. */}
       {
@@ -211,6 +217,29 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
     prefetch: [{ source: "document", where: { selector_matches: "a.card:not(.out), .trail a" }, eagerness: "moderate" }],
   })} />
   <script>
+    import { readKept, toggled, writeKept } from "../../lib/kept";
+
+    // Keep: on and off, with the header's count kept in step (Base.astro listens for "slm:kept").
+    const keep = document.querySelector<HTMLButtonElement>("#keep")!;
+    const keepStatus = document.getElementById("keep-status")!;
+    const slug = keep.dataset.slug!;
+    const showKept = () => {
+      const on = readKept().includes(slug);
+      keep.classList.toggle("on", on);
+      keep.querySelector("span")!.textContent = on ? "Kept" : "Keep";
+      return on;
+    };
+    keep.addEventListener("click", () => {
+      writeKept(toggled(readKept(), slug));
+      const on = showKept();
+      keepStatus.textContent = on ? "Kept. Your list is at the top of the page." : "Taken off your list.";
+      dispatchEvent(new Event("slm:kept"));
+    });
+    showKept();
+    keep.hidden = false;
+    addEventListener("pageshow", (e) => e.persisted && showKept());
+    addEventListener("storage", (e) => e.key === "slm:kept" && showKept());
+
     // The tapped poster takes the next hero's name and this hero shrinks into the next page's newest path chip.
     // Going back along the path, the chip grows into the hero instead.
     document.addEventListener("click", (e) => {
@@ -317,14 +346,23 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
   .facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-3) 0 var(--space-2); padding: 0; }
   .h-text { min-width: 0; overflow-wrap: anywhere; }
   .h-text .muted { margin: 0; }
+  .acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
+  @media (min-width: 720px) { .acts { grid-column: 2; } }
   /* Where to watch: the one link off the site, so it says where it goes and points out of the page. */
   /* A button to tap, not a fact: taller and roomier than the fact pills. */
-  .watch {
-    grid-column: 1 / -1; justify-self: start; max-width: 100%; min-height: 40px; padding: 0 var(--space-4); gap: var(--space-2);
+  .watch, .keep {
+    max-width: 100%; min-height: 40px; padding: 0 var(--space-4); gap: var(--space-2);
     font: var(--label-weight) var(--text-sm) var(--font-label);
   }
-  @media (min-width: 720px) { .watch { grid-column: 2; } }
-  .watch:hover { border-color: var(--accent); }
+  .watch:hover, .keep:hover { border-color: var(--accent); }
+  .keep { cursor: pointer; }
+  .keep :global(.icon) { color: var(--accent); }
+  .keep.on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .keep.on :global(.icon) { color: var(--bg); }
+  @media (forced-colors: active) {
+    .keep.on { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+    .keep.on :global(.icon) { color: HighlightText; }
+  }
   .watch :global(.icon:first-child) { color: var(--accent); }
   .about { grid-column: 1 / -1; min-width: 0; max-width: 65ch; }
   @media (min-width: 720px) { .about { grid-column: 2; } }
