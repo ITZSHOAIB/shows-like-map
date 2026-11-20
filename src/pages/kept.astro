@@ -129,7 +129,9 @@ import { STATUS_LABEL } from "../lib/catalogue";
   .k-btn :global(.icon) { color: var(--accent); }
   .k-main { background: var(--accent); border-color: var(--accent); color: var(--bg); }
   .k-main :global(.icon) { color: var(--bg); }
-  .k-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--space-6) var(--space-3); margin: 0; padding: 0; list-style: none; }
+  /* Three across on every phone, like the home page's grid (auto-fill gave a 360px phone two huge posters). */
+  .k-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6) var(--space-3); margin: 0; padding: 0; list-style: none; }
+  @media (min-width: 560px) { .k-tiles { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); } }
   @media (min-width: 720px) { .k-tiles { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-8) var(--space-4); } }
   .k-tiles :global(li) { display: grid; gap: var(--space-1); align-content: start; min-width: 0; }
   .k-tiles :global(.k-drop) {

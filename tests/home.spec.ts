@@ -87,3 +87,18 @@ test("without JavaScript the wall still works, and the search and chips stay out
   await expect(page.locator(".wall a.tile").first()).toHaveAttribute("href", /^\/shows\/[a-z0-9-]+\/$/);
   await context.close();
 });
+
+// The grid of shows is three across on every phone, so a bigger phone gets bigger posters, never more and smaller ones.
+test("on phones the grid is three across, and its posters grow with the screen", async ({ page }) => {
+  let last = 0;
+  for (const width of [320, 360, 390, 430, 520]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    const tiles = page.locator(".tiles li");
+    const tops = await tiles.evaluateAll((els) => els.slice(0, 4).map((e) => Math.round(e.getBoundingClientRect().top)));
+    expect(tops.slice(0, 3).every((t) => t === tops[0]) && tops[3] > tops[0]).toBe(true);
+    const w = (await tiles.first().locator(".poster").boundingBox())!.width;
+    expect(w).toBeGreaterThan(last);
+    last = w;
+  }
+});
