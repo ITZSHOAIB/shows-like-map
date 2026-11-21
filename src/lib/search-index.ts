@@ -15,5 +15,5 @@ const ALSO: Record<string, string[]> = {
 export function entryOf(s: Show): Entry {
   const year = s.premiered?.slice(0, 4) ?? "";
   const poster = s.poster?.startsWith(POSTERS) ? s.poster.slice(POSTERS.length) : (s.poster ?? "");
-  return [s.slug, s.name, year, s.status, s.minutes === null ? null : hours(s.minutes), poster, ALSO[`${s.name}|${year}`] ?? ALSO[s.name] ?? []];
+  return [s.slug, s.name, year, s.status, s.minutes === null ? null : hours(s.minutes), poster, ALSO[`${s.name}|${year}`] ?? ALSO[s.name] ?? [], s.rating ?? null];
 }

@@ -10,8 +10,26 @@ test("a show TVmaze rates says so in its facts, credited to TVmaze", async ({ pa
   test.skip(!("rating" in show("breaking-bad")), "the catalogue predates ratings: run the data job");
   await page.goto("/shows/breaking-bad/");
   const pill = page.locator(".pill.rating");
-  await expect(pill).toHaveText(`Rated ${show("breaking-bad").rating} on TVmaze`, { useInnerText: true });
-  await expect(pill.locator("svg")).toHaveAttribute("aria-hidden", "true");
+  const r = show("breaking-bad").rating!.toFixed(1);
+  // Seen: a gold star, "9.2/10", then "TVmaze" small. Heard: the same as a sentence.
+  await expect(pill.locator(".r-num")).toHaveText(String(r));
+  await expect(pill.locator(".r-by")).toHaveText("TVmaze");
+  await expect(pill).toMatchAriaSnapshot(`- listitem: Rated ${r} out of 10 on TVmaze`);
+});
+
+test("holding a rated match peeks at its rating too, right after its hours", async ({ page }) => {
+  test.skip(!("rating" in show("breaking-bad")), "the catalogue predates ratings: run the data job");
+  await page.goto("/shows/breaking-bad/");
+  const card = page.locator(".row:not(.further) a.card[href$=\"/better-call-saul/\"]");
+  await card.scrollIntoViewIfNeeded();
+  const b = (await card.locator(".poster").boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(600);
+  await page.mouse.up();
+  const pill = page.getByRole("dialog").locator(".pill.rating");
+  await expect(pill).toMatchAriaSnapshot(`- listitem: Rated ${show("better-call-saul").rating!.toFixed(1)} out of 10 on TVmaze`);
+  await expect(pill.locator("xpath=preceding-sibling::li[1]")).toContainText("to finish");
 });
 
 test("a show TVmaze hasn't rated shows no rating, rather than a blank or a zero", async ({ page }) => {
@@ -19,4 +37,38 @@ test("a show TVmaze hasn't rated shows no rating, rather than a blank or a zero"
   await page.goto("/shows/panchayat/");
   await expect(page.locator(".pill.badge")).toBeVisible();
   await expect(page.locator(".pill.rating")).toHaveCount(0);
+});
+
+test("a match card shows a gold star and the rating on its poster, and an unrated one shows none", async ({ page }) => {
+  test.skip(!("rating" in show("breaking-bad")), "the catalogue predates ratings: run the data job");
+  await page.goto("/shows/breaking-bad/");
+  const card = page.locator('.row:not(.further) a.card[href$="/better-call-saul/"]');
+  await expect(card.locator(".rate")).toHaveText(`rated ${show("better-call-saul").rating!.toFixed(1)}`);
+  // On the poster, near its bottom-left corner (fonts shift it a pixel or so between systems).
+  const p = (await card.locator(".poster").boundingBox())!, r = (await card.locator(".rate").boundingBox())!;
+  for (const gap of [r.x - p.x, p.y + p.height - (r.y + r.height)]) {
+    expect(gap).toBeGreaterThanOrEqual(4);
+    expect(gap).toBeLessThanOrEqual(12);
+  }
+  // Every card's rating matches its show's, and a card without one has no star.
+  for (const card of await page.locator(".row:not(.further) a.card[href^='/shows/']").all()) {
+    const r = show((await card.getAttribute("href"))!.split("/")[2]).rating;
+    await expect(card.locator(".rate")).toHaveCount(r ? 1 : 0);
+  }
+});
+
+test("home tiles carry the rating too: on the wall, and on search results built in the browser", async ({ page }) => {
+  test.skip(!("rating" in show("breaking-bad")), "the catalogue predates ratings: run the data job");
+  await page.goto("/");
+  const wall = page.locator(".wall a.tile").first();
+  const slug = (await wall.getAttribute("href"))!.split("/")[2];
+  await expect(wall.locator(".rate")).toHaveCount(show(slug).rating ? 1 : 0);
+  await page.locator("#q").fill("breaking bad");
+  const hit = page.locator('#results a.tile[href="/shows/breaking-bad/"]');
+  await expect(hit.locator(".rate")).toHaveText(`rated ${show("breaking-bad").rating!.toFixed(1)}`);
+  await expect(hit.locator(".rate svg")).toHaveAttribute("aria-hidden", "true");
+  await page.locator("#q").fill("panchayat");
+  const unrated = page.locator('#results a.tile[href="/shows/panchayat/"]');
+  await expect(unrated).toBeVisible();
+  await expect(unrated.locator(".rate")).toHaveCount(0);
 });

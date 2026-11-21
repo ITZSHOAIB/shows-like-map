@@ -46,6 +46,7 @@ test("nothing typed, or nothing like it, finds nothing", () => {
 });
 
 test("an entry carries what a result shows: year, status, hours as the show page writes them, and the poster's path", () => {
-  const e = entryOf(show("Dark", "2017-12-01", { minutes: 1450, poster: "https://static.tvmaze.com/uploads/images/medium_portrait/1/2.jpg" }));
-  assert.deepEqual(e, ["dark", "Dark", "2017", "ended", "24 h", "1/2.jpg", []]);
+  const e = entryOf(show("Dark", "2017-12-01", { minutes: 1450, rating: 8.7, poster: "https://static.tvmaze.com/uploads/images/medium_portrait/1/2.jpg" }));
+  assert.deepEqual(e, ["dark", "Dark", "2017", "ended", "24 h", "1/2.jpg", [], 8.7]);
+  assert.equal(entryOf(show("Gullak", "2019-06-27"))[7], null);
 });

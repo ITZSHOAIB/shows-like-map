@@ -1,5 +1,5 @@
 ---
-// One match in a row: poster, name, year, status and hours, and the one-line "why".
+// One match in a row: poster (with its TVmaze rating in the corner), name, year, status and hours, and the one-line "why".
 // Matches outside the catalogue have no page, poster or facts here, so they link to the show on TVmaze instead, marked as
 // leaving the site: every match has checked out on TVmaze, so the trail never just stops.
 import { hours, STATUS_LABEL, type Show } from "../lib/catalogue";
@@ -35,6 +35,8 @@ const { match, show, eager } = Astro.props;
       <span class="c-meta">{match.year && <>{match.year} ·</>} On TVmaze <Icon name="arrow-up-right" /></span>
     )
   }
+  {/* Drawn on the poster's corner but read after the facts: "…67 h, rated 8.6". */}
+  {show?.rating && <span class="rate"><Icon name="star" /><span class="sr-only">rated </span>{show.rating.toFixed(1)}</span>}
   <span class="c-why">{match.why}</span>
 </a>
 
