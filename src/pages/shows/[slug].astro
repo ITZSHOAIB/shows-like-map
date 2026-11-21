@@ -114,8 +114,12 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
         <ul class="facts">
           <li class={`pill badge s-${show.status}`}><Icon name={STATUS_ICON[show.status]} /> {STATUS_LABEL[show.status]}</li>
           {show.minutes !== null && <li class="pill"><Icon name="hourglass-medium" /> {hours(show.minutes)} to finish</li>}
-          {/* Only when TVmaze has one: its users' average, credited like JustWatch below. */}
-          {show.rating && <li class="pill rating"><Icon name="star" /> <span class="sr-only">Rated </span>{show.rating} <span class="muted">on TVmaze</span></li>}
+          {/* Only when TVmaze has one: its users' average, credited to it. A screen reader hears "Rated 9.2 out of 10 on TVmaze". */}
+          {show.rating && (
+            <li class="pill rating">
+              <Icon name="star" /><span class="sr-only">Rated </span><span class="r-num">{show.rating}</span><span class="r-of" aria-hidden="true">/10</span><span class="sr-only"> out of 10 on </span><span class="r-by">TVmaze</span>
+            </li>
+          )}
           {show.platform && <li class="pill"><Icon name="television" /> {show.platform}</li>}
           {year && <li class="pill"><Icon name="calendar-dots" /> {year}</li>}
         </ul>

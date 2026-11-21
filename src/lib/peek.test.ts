@@ -7,9 +7,11 @@ const show = (id: number, more: Partial<Show> = {}) =>
   ({ id, slug: `s${id}`, name: `Show ${id}`, poster: null, status: "ended", minutes: null, premiered: null, platform: null, summary: null, ...more }) as Show;
 const match = { id: 2, name: "Show 2", year: 2008, why: "Same desert, same slow fall" };
 
-test("the facts are status, hours, rating, year and network, leaving out the unknown ones", () => {
+test("the facts are status, hours, year and network, leaving out the unknown ones, with the rating beside them", () => {
   const full = show(2, { status: "cancelled", minutes: 62 * 60, rating: 9.2, premiered: "2008-01-20", platform: "AMC" });
-  assert.deepEqual(peekOf(show(1), match, full, []).facts, ["Cancelled", "62 h to finish", "9.2 on TVmaze", "2008", "AMC"]);
+  assert.deepEqual(peekOf(show(1), match, full, []).facts, ["Cancelled", "62 h to finish", "2008", "AMC"]);
+  assert.equal(peekOf(show(1), match, full, []).rating, 9.2);
+  assert.equal(peekOf(show(1), match, show(3), []).rating, null);
   assert.deepEqual(peekOf(show(1), match, show(2, { status: "running" }), []).facts, ["Ongoing"]);
 });
 

@@ -4,6 +4,7 @@
 // Everything in it is also on the show's own page, so it's a shortcut, never the only way to something.
 // Drag it sideways to decide (decision 0012): right keeps the show, left closes the peek. Keep is a button too.
 import type { Peek } from "../lib/peek";
+import Icon from "./Icon.astro";
 
 interface Props { data: Record<string, Peek>; from: string }
 const { data, from } = Astro.props;
@@ -11,6 +12,7 @@ const { data, from } = Astro.props;
 
 <script type="application/json" id="peek-data" set:html={JSON.stringify(data).replace(/</g, "\\u003c")} />
 <dialog class="peek" id="peek" aria-labelledby="peek-title" data-from={from}></dialog>
+<template id="pk-star"><Icon name="star" /></template>
 <p class="sr-only" id="peek-status" aria-live="polite"></p>
 
 <script>
@@ -71,6 +73,17 @@ const { data, from } = Astro.props;
     title.id = "peek-title";
     const facts = el("ul", "pk-facts");
     facts.append(...s.facts.map((f) => el("li", "pill", f)));
+    // The rating, built like the show page's: after the hours (or the status, without them).
+    if (s.rating) {
+      const r = el("li", "pill rating");
+      r.append(
+        (document.getElementById("pk-star") as HTMLTemplateElement).content.cloneNode(true),
+        el("span", "sr-only", "Rated "), el("span", "r-num", String(s.rating)), el("span", "r-of", "/10"),
+        el("span", "sr-only", " out of 10 on "), el("span", "r-by", "TVmaze"),
+      );
+      r.querySelector(".r-of")!.setAttribute("aria-hidden", "true");
+      facts.children[s.facts[1]?.endsWith("to finish") ? 1 : 0].after(r);
+    }
     text.append(el("p", "eyebrow", s.via ? `Via ${s.via}` : `Like ${from}`), title, facts);
     head.append(posterEl(s.poster, s.name, "pk-poster"), text);
     const kept = readKept().includes(slugOf(card));

@@ -7,7 +7,8 @@ export interface PeekLead { slug: string; name: string; poster: string | null }
 export interface Peek {
   name: string;
   poster: string | null;
-  facts: string[]; // status, hours to finish, TVmaze rating, year, network: the ones known
+  facts: string[]; // status, hours to finish, year, network: the ones known
+  rating: number | null; // TVmaze's, shown as a star pill after the hours
   why: string; // why it's like the show whose page this is, or, a step further out, like the match it came via
   via?: string; // a step further out: the match of this page's show that leads to it
   summary: string | null;
@@ -29,10 +30,10 @@ export function peekOf(here: Show, match: Match, show: Show, next: Show[], via?:
     facts: [
       STATUS_LABEL[show.status],
       show.minutes !== null ? `${hours(show.minutes)} to finish` : "",
-      show.rating ? `${show.rating} on TVmaze` : "",
       show.premiered?.slice(0, 4) ?? "",
       show.platform ?? "",
     ].filter(Boolean),
+    rating: show.rating ?? null,
     why: match.why,
     summary: show.summary,
     // The way back to `here` isn't somewhere new to go.
