@@ -121,10 +121,9 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
             </li>
           )}
           {show.platform && <li class="pill"><Icon name="television" /> {show.platform}</li>}
-          {year && <li class="pill"><Icon name="calendar-dots" /> {year}</li>}
         </ul>
         <p class="muted small">
-          {show.seasons} {show.seasons === 1 ? "season" : "seasons"} · {show.episodes} episodes{show.language && <> · {show.language}</>}
+          {year && <>{year} · </>}{show.seasons} {show.seasons === 1 ? "season" : "seasons"} · {show.episodes} episodes{show.language && <> · {show.language}</>}
         </p>
       </div>
       <div class="acts">
