@@ -291,10 +291,14 @@ const { data, from } = Astro.props;
     press = null;
   };
   let holdFrom = 0; // where the finger that opened the peek went down: it can drag the peek without lifting
+  // While a peek is held, the finger's moves drag it, so the page mustn't scroll under it. Only then: a touchmove listener
+  // that can cancel makes every swipe wait on this script, which a fast fling on a row feels as lag.
+  const pin = (e: TouchEvent) => e.preventDefault();
   const open = (card: HTMLAnchorElement) => {
     holdFrom = press?.x ?? 0;
     endPress();
     holding = true;
+    document.addEventListener("touchmove", pin, { passive: false });
     navigator.vibrate?.(10);
     show(card);
   };
@@ -319,6 +323,7 @@ const { data, from } = Astro.props;
     endPress();
     if (!holding) return;
     holding = false;
+    document.removeEventListener("touchmove", pin);
     if (dialog.open) settle();
     lifted = true;
     releasedAt = performance.now();
@@ -328,7 +333,6 @@ const { data, from } = Astro.props;
   addEventListener("pointerup", release);
   addEventListener("pointercancel", release);
   addEventListener("blur", release); // a press that ends in another window never sends pointerup here
-  document.addEventListener("touchmove", (e) => { if (holding) e.preventDefault(); }, { passive: false });
   document.addEventListener("contextmenu", (e) => {
     if (fresh()) return e.preventDefault();
     // A long press that beat our timer peeks. A right-click with a mouse keeps the browser's menu ("Open in new tab").
