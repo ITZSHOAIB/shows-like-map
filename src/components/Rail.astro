@@ -1,15 +1,14 @@
 ---
 // A row that scrolls sideways (the matches, a step further out, the home page's time rows): wrap its .track in this.
-// Its edges fade where there's more to see, on every screen. With a mouse, arrows scroll it a screen at a time; touch
-// and trackpads swipe it natively, and keyboard users Tab along the cards, which scroll themselves into view. The arrows
-// are for the pointer only, so they're hidden from screen readers and out of the Tab order.
-import Icon from "./Icon.astro";
+// Its edges fade where there's more to see, on every screen. Touch and trackpads swipe it natively. A mouse grabs it:
+// the row follows the mouse and flings on with the speed it's let go at, then snaps to a card; a scrubber under it shows
+// how much is in view and where, and jumps on a click. Keyboard users Tab along the cards, which scroll themselves into
+// view, so the scrubber is for the pointer only and hidden from screen readers (decision 0013).
 ---
 
 <div class="rail">
   <slot />
-  <button type="button" class="rail-btn prev" tabindex="-1" aria-hidden="true"><Icon name="caret-left" /></button>
-  <button type="button" class="rail-btn next" tabindex="-1" aria-hidden="true"><Icon name="caret-right" /></button>
+  <div class="rail-scrub" aria-hidden="true" hidden><span></span></div>
 </div>
 
 <script>
@@ -17,15 +16,19 @@ import Icon from "./Icon.astro";
 
   for (const rail of document.querySelectorAll<HTMLElement>(".rail")) {
     const track = rail.querySelector<HTMLElement>(".track")!;
+    const bar = rail.querySelector<HTMLElement>(".rail-scrub")!;
+    const thumb = bar.firstElementChild as HTMLElement;
     let frame = 0;
-    // Which edges have more past them, and where the arrows sit: halfway down the posters.
+    // Which edges have more past them, and the scrubber: the share of the row in view, and where it is.
     const update = () => {
       frame = 0;
       const max = track.scrollWidth - track.clientWidth;
       rail.toggleAttribute("data-l", track.scrollLeft > 4);
       rail.toggleAttribute("data-r", max > 4 && track.scrollLeft < max - 4);
-      const poster = track.querySelector<HTMLElement>("li:not([hidden]) :is(.poster, .poster-ph)");
-      if (poster?.offsetHeight) rail.style.setProperty("--rail-mid", `${poster.offsetTop + poster.offsetHeight / 2}px`);
+      bar.hidden = max <= 4;
+      const share = track.clientWidth / track.scrollWidth;
+      thumb.style.width = `${share * 100}%`;
+      thumb.style.left = `${max > 0 ? (track.scrollLeft / max) * (1 - share) * 100 : 0}%`;
     };
     const soon = () => (frame ||= requestAnimationFrame(update));
     track.addEventListener("scroll", soon, { passive: true });
@@ -34,12 +37,70 @@ import Icon from "./Icon.astro";
     document.addEventListener("change", soon);
     document.addEventListener("reset", () => setTimeout(soon));
     addEventListener("pageshow", soon);
-    for (const [cls, dir] of [["prev", -1], ["next", 1]] as const) {
-      rail.querySelector(`.${cls}`)!.addEventListener("click", () => {
-        // Most of a screen, so the card at the edge stays in view and you keep your place; snapping lines it up.
-        track.scrollBy({ left: dir * track.clientWidth * 0.8, behavior: still.matches ? "auto" : "smooth" });
-      });
-    }
+
+    // While the mouse moves the row, snapping would fight it; it lines the nearest card up once the row comes to rest.
+    const loose = (on: boolean) => (track.style.scrollSnapType = on ? "none" : "");
+
+    // The scrubber: press anywhere on it to centre the view there, and drag along it.
+    bar.addEventListener("pointerdown", (e) => {
+      const b = bar.getBoundingClientRect();
+      const share = track.clientWidth / track.scrollWidth;
+      const to = (x: number) => (((x - b.left) / b.width - share / 2) / (1 - share)) * (track.scrollWidth - track.clientWidth);
+      loose(true);
+      track.scrollLeft = to(e.clientX);
+      bar.setPointerCapture(e.pointerId);
+      const move = (m: PointerEvent) => (track.scrollLeft = to(m.clientX));
+      bar.addEventListener("pointermove", move);
+      bar.addEventListener("pointerup", () => { bar.removeEventListener("pointermove", move); loose(false); }, { once: true });
+    });
+
+    // Grabbing the row. A press that barely moves is a click (or a hold, which peeks); past a few pixels it's a drag,
+    // and the click its release makes goes nowhere.
+    let down: { x: number; left: number; t: number; v: number; moved: boolean } | null = null;
+    let fling = 0;
+    let swallow = false;
+    track.addEventListener("click", (e) => {
+      if (swallow) { swallow = false; e.preventDefault(); e.stopPropagation(); }
+    }, { capture: true });
+    track.addEventListener("pointerdown", (e) => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      cancelAnimationFrame(fling);
+      swallow = false;
+      down = { x: e.clientX, left: track.scrollLeft, t: performance.now(), v: 0, moved: false };
+    });
+    addEventListener("pointermove", (e) => {
+      if (!down) return;
+      // A hold that opened a peek: the mouse drags the peek now, not the row under it.
+      if (!down.moved && document.querySelector("dialog[open]")) return void (down = null);
+      const dx = e.clientX - down.x;
+      if (!down.moved && Math.abs(dx) < 6) return;
+      if (!down.moved) { down.moved = true; loose(true); rail.classList.add("grabbing"); }
+      const now = performance.now(), from = track.scrollLeft;
+      track.scrollLeft = down.left - dx;
+      // The speed it's moving at (px per ms), smoothed over the last few moves, for the fling.
+      down.v = 0.8 * ((track.scrollLeft - from) / Math.max(now - down.t, 1)) + 0.2 * down.v;
+      down.t = now;
+    });
+    const letGo = () => {
+      if (!down) return;
+      const { moved, v } = down;
+      down = null;
+      rail.classList.remove("grabbing");
+      if (!moved) return;
+      swallow = true;
+      setTimeout(() => (swallow = false)); // released off the row: no click comes to swallow
+      let speed = still.matches ? 0 : v * 16; // px per frame
+      const step = () => {
+        speed *= 0.94;
+        track.scrollLeft += speed;
+        if (Math.abs(speed) > 0.5) fling = requestAnimationFrame(step);
+        else loose(false);
+      };
+      step();
+    };
+    addEventListener("pointerup", letGo);
+    addEventListener("pointercancel", letGo);
+    track.addEventListener("dragstart", (e) => e.preventDefault()); // the browser's own drag of a link or poster
     update();
   }
 </script>
@@ -59,27 +120,29 @@ import Icon from "./Icon.astro";
   .rail[data-l] { --fade-l: var(--rail-fade); }
   .rail[data-r] { --fade-r: var(--rail-fade); }
 
-  .rail-btn {
-    position: absolute; z-index: 1; top: var(--rail-mid, 40%); translate: 0 -50%;
-    display: none; place-items: center; width: 44px; height: 64px; padding: 0;
-    border: 1px solid var(--pill-line); border-radius: var(--radius-pill); color: var(--text); cursor: pointer;
-    background: rgb(7 8 12 / 0.72); backdrop-filter: blur(10px); box-shadow: var(--shadow-1);
-    opacity: 0; transition: opacity var(--slow) var(--ease), scale 0.15s var(--ease), border-color 0.15s;
-  }
-  .rail-btn .icon { width: 22px; height: 22px; }
-  /* At the window's edges, over the faded ends: cards run past the page column, so anywhere further in sits on a poster. */
-  .rail-btn.prev { left: 8px; }
-  .rail-btn.next { right: 8px; }
-  .rail-btn:hover { border-color: var(--accent); }
-  .rail-btn:active { scale: 0.92; }
-  /* A mouse on a screen wider than a phone gets arrows, where there's more that way; brighter while the pointer is on the row.
-     Phones never do: a swipe is the way there, and an arrow would sit on the next poster. */
-  @media (hover: hover) and (pointer: fine) and (min-width: 720px) {
-    .rail[data-l] .prev, .rail[data-r] .next { display: grid; opacity: 0.55; }
-    .rail:hover[data-l] .prev, .rail:hover[data-r] .next { opacity: 1; }
+  /* A mouse grabs the row. Phones and touch screens swipe, so they get neither the cursor nor the scrubber. */
+  .rail-scrub { display: none; }
+  @media (hover: hover) and (pointer: fine) {
+    .rail > .track { cursor: grab; }
+    .rail.grabbing > .track { cursor: grabbing; user-select: none; }
+    .rail.grabbing a { pointer-events: none; }
+    .rail-scrub {
+      display: block; position: relative; height: 4px; cursor: pointer;
+      margin: var(--space-2) max(var(--gutter), calc((100% - 1100px) / 2 + var(--gutter))) 0;
+      border-radius: 2px; background: rgb(255 255 255 / 0.1);
+    }
+    .rail-scrub::before { content: ""; position: absolute; inset: -8px 0; } /* a taller target than it looks */
+    .rail-scrub > span {
+      position: absolute; top: 0; bottom: 0; border-radius: 2px; background: rgb(255 255 255 / 0.45);
+      transition: background-color var(--fast);
+    }
+    .rail-scrub:hover > span { background: var(--accent); }
+    .rail-scrub[hidden] { display: none; }
   }
   @media (forced-colors: active) {
     .rail > .track { mask-image: none; }
-    .rail-btn { border-color: ButtonText; background: ButtonFace; color: ButtonText; }
+    .rail-scrub { forced-color-adjust: none; background: Canvas; outline: 1px solid GrayText; }
+    .rail-scrub > span { background: CanvasText; }
+    .rail-scrub:hover > span { background: Highlight; }
   }
 </style>
