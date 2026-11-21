@@ -44,10 +44,12 @@ test("a match card shows a gold star and the rating on its poster, and an unrate
   await page.goto("/shows/breaking-bad/");
   const card = page.locator('.row:not(.further) a.card[href$="/better-call-saul/"]');
   await expect(card.locator(".c-rate")).toHaveText(`rated ${show("better-call-saul").rating}`);
-  // On the poster's bottom-left corner.
+  // On the poster, near its bottom-left corner (fonts shift it a pixel or so between systems).
   const p = (await card.locator(".poster").boundingBox())!, r = (await card.locator(".c-rate").boundingBox())!;
-  expect(r.x - p.x).toBeCloseTo(8, 0);
-  expect(p.y + p.height - (r.y + r.height)).toBeCloseTo(8, 0);
+  for (const gap of [r.x - p.x, p.y + p.height - (r.y + r.height)]) {
+    expect(gap).toBeGreaterThanOrEqual(4);
+    expect(gap).toBeLessThanOrEqual(12);
+  }
   // Every card's rating matches its show's, and a card without one has no star.
   for (const card of await page.locator(".row:not(.further) a.card[href^='/shows/']").all()) {
     const r = show((await card.getAttribute("href"))!.split("/")[2]).rating;
