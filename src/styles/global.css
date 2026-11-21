@@ -117,13 +117,12 @@ h1, h2, h3 {
 /* A tint of the status colour over a dark base, not over nothing: on a bright poster's backdrop the green text needs the
    darkening to keep 4.5:1 (Seinfeld's "Ended" measured 4.44 on Linux without it). */
 .pill.badge { border-color: color-mix(in srgb, var(--s) 45%, transparent); background: color-mix(in srgb, var(--s) 12%, rgb(7 8 12 / 0.7)); }
-/* The TVmaze rating: a gold star and a bold number, tinted like a status badge but in the accent, with the source
-   small after it. The star's duotone layer goes solid. */
+/* The TVmaze rating, "★ 8.8 | TVmaze": a gold star and a bold number, tinted like a status badge but in the accent,
+   with the source small after it. The star's duotone layer goes solid. */
 .pill.rating { gap: 0; border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 12%, rgb(7 8 12 / 0.7)); }
 .rating .icon { margin-right: 5px; color: var(--accent); }
 .rating .icon path { opacity: 1; }
 .r-num { font-weight: 800; font-variant-numeric: tabular-nums; }
-.r-of { color: var(--muted); font-weight: 600; font-size: 0.85em; }
 .r-by { margin-left: 6px; padding-left: 6px; border-left: 1px solid var(--line); color: var(--muted); font-weight: 600; font-size: 0.85em; }
 /* An eyebrow: the small capitals over a heading. */
 .eyebrow {

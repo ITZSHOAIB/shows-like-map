@@ -78,10 +78,9 @@ const { data, from } = Astro.props;
       const r = el("li", "pill rating");
       r.append(
         (document.getElementById("pk-star") as HTMLTemplateElement).content.cloneNode(true),
-        el("span", "sr-only", "Rated "), el("span", "r-num", String(s.rating)), el("span", "r-of", "/10"),
+        el("span", "sr-only", "Rated "), el("span", "r-num", String(s.rating)),
         el("span", "sr-only", " out of 10 on "), el("span", "r-by", "TVmaze"),
       );
-      r.querySelector(".r-of")!.setAttribute("aria-hidden", "true");
       facts.children[s.facts[1]?.endsWith("to finish") ? 1 : 0].after(r);
     }
     text.append(el("p", "eyebrow", s.via ? `Via ${s.via}` : `Like ${from}`), title, facts);
