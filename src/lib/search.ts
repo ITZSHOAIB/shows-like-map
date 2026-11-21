@@ -6,7 +6,7 @@ import type { Status } from "./catalogue";
 export const POSTERS = "https://static.tvmaze.com/uploads/images/medium_portrait/";
 
 /** One show in the index, smallest first: slug, name, year, status, hours to finish ("62 h"), poster path, other names. */
-export type Entry = [slug: string, name: string, year: string, status: Status, hours: string | null, poster: string, also: string[]];
+export type Entry = [slug: string, name: string, year: string, status: Status, hours: string | null, poster: string, also: string[], rating: number | null];
 
 /** Lower case, no accents, "&" as "and", and anything else that isn't a letter or digit as one space. */
 export const norm = (s: string) =>

@@ -78,7 +78,7 @@ const { data, from } = Astro.props;
       const r = el("li", "pill rating");
       r.append(
         (document.getElementById("pk-star") as HTMLTemplateElement).content.cloneNode(true),
-        el("span", "sr-only", "Rated "), el("span", "r-num", String(s.rating)),
+        el("span", "sr-only", "Rated "), el("span", "r-num", s.rating.toFixed(1)),
         el("span", "sr-only", " out of 10 on "), el("span", "r-by", "TVmaze"),
       );
       facts.children[s.facts[1]?.endsWith("to finish") ? 1 : 0].after(r);

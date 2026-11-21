@@ -1,7 +1,8 @@
 ---
-// A show on the home page: poster, name, and year · status · hours, as a match card shows them (MatchCard.astro).
+// A show on the home page: poster (with its TVmaze rating), name, and year · status · hours, as a match card shows them (MatchCard.astro).
 // The page's script builds the same markup for search results (index.astro), so its styles are in global.css (with /kept/, which builds them too).
 import { hours, STATUS_LABEL, type Show } from "../lib/catalogue";
+import Icon from "./Icon.astro";
 
 interface Props {
   show: Show;
@@ -26,4 +27,5 @@ const year = show.premiered?.slice(0, 4);
     {STATUS_LABEL[show.status]}
     {show.minutes !== null && <> · {hours(show.minutes)}</>}
   </span>
+  {show.rating && <span class="rate"><Icon name="star" /><span class="sr-only">rated </span>{show.rating.toFixed(1)}</span>}
 </a>

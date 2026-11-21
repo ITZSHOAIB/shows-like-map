@@ -117,7 +117,7 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
           {/* Only when TVmaze has one: its users' average, credited to it. A screen reader hears "Rated 9.2 out of 10 on TVmaze". */}
           {show.rating && (
             <li class="pill rating">
-              <Icon name="star" /><span class="sr-only">Rated </span><span class="r-num">{show.rating}</span><span class="sr-only"> out of 10 on </span><span class="r-by">TVmaze</span>
+              <Icon name="star" /><span class="sr-only">Rated </span><span class="r-num">{show.rating.toFixed(1)}</span><span class="sr-only"> out of 10 on </span><span class="r-by">TVmaze</span>
             </li>
           )}
           {show.platform && <li class="pill"><Icon name="television" /> {show.platform}</li>}

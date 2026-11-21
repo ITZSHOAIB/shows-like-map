@@ -183,6 +183,17 @@ html { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.2) transparen
 
 /* A show tile (Tile.astro), also built by script for home search results and /kept/ (src/lib/tile.ts). */
 .tile { display: grid; gap: 2px; align-content: start; min-width: 0; }
+/* A card's TVmaze rating, "★ 8.6", on its poster's bottom-left corner: in the poster's grid cell, so it never wraps and
+   sits in the same place on every card. 8px in, so it stays on the poster when a press shrinks it. Read after the facts. */
+:is(.card, .tile) > :is(.poster, .poster-ph) { grid-area: 1 / 1; }
+.rate {
+  grid-area: 1 / 1; align-self: end; justify-self: start; margin: 8px; display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 6px; border-radius: 4px; background: rgb(7 8 12 / 0.8); color: var(--text);
+  font: 700 var(--text-xs)/1.4 var(--font-label); font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.tile > .rate { margin-bottom: calc(8px + var(--space-1)); } /* the tile's poster has a margin under it */
+.rate .icon { color: var(--accent); }
+.rate .icon path { opacity: 1; }
 .tile :is(.poster, .poster-ph) { margin-bottom: var(--space-1); transition: scale var(--slow) var(--ease), box-shadow var(--slow); box-shadow: var(--shadow-1); }
 .tile:hover :is(.poster, .poster-ph), .tile:focus-visible :is(.poster, .poster-ph) { scale: 1.03; box-shadow: 0 0 0 2px var(--accent), 0 12px 28px rgb(0 0 0 / 0.45); }
 /* Keyboard focus rings the poster, as on match cards: a ring round the whole tile would be clipped in a scrolling row. */

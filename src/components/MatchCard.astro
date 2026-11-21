@@ -36,7 +36,7 @@ const { match, show, eager } = Astro.props;
     )
   }
   {/* Drawn on the poster's corner but read after the facts: "…67 h, rated 8.6". */}
-  {show?.rating && <span class="c-rate"><Icon name="star" /><span class="sr-only">rated </span>{show.rating}</span>}
+  {show?.rating && <span class="rate"><Icon name="star" /><span class="sr-only">rated </span>{show.rating.toFixed(1)}</span>}
   <span class="c-why">{match.why}</span>
 </a>
 
@@ -52,16 +52,6 @@ const { match, show, eager } = Astro.props;
   a.card:active .poster { scale: 0.96; }
   .c-title { margin-top: var(--space-1); font: 700 var(--text-md)/1.2 var(--font-display); letter-spacing: var(--display-tracking); text-transform: var(--display-case); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .c-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; font-size: var(--text-xs); color: var(--muted); font-variant-numeric: var(--nums); }
-  /* The rating sits on the poster's bottom-left corner, in the poster's grid cell: never wrapping, in the same place on
-     every card. 8px in, so it stays on the poster when a press shrinks it. The star is solid gold, as on the show page. */
-  .card > :is(.poster, .poster-ph) { grid-area: 1 / 1; }
-  .c-rate {
-    grid-area: 1 / 1; align-self: end; justify-self: start; margin: 8px; display: inline-flex; align-items: center; gap: 3px;
-    padding: 2px 6px; border-radius: 4px; background: rgb(7 8 12 / 0.8); color: var(--text);
-    font: 700 var(--text-xs)/1.4 var(--font-label); font-variant-numeric: tabular-nums; pointer-events: none;
-  }
-  .c-rate :global(.icon) { color: var(--accent); }
-  .c-rate :global(.icon path) { opacity: 1; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--s); flex: none; }
   .c-why { font-size: var(--text-sm); line-height: 1.35; color: var(--text); opacity: 0.85; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 </style>

@@ -10,7 +10,7 @@ test("a show TVmaze rates says so in its facts, credited to TVmaze", async ({ pa
   test.skip(!("rating" in show("breaking-bad")), "the catalogue predates ratings: run the data job");
   await page.goto("/shows/breaking-bad/");
   const pill = page.locator(".pill.rating");
-  const r = show("breaking-bad").rating;
+  const r = show("breaking-bad").rating!.toFixed(1);
   // Seen: a gold star, "9.2/10", then "TVmaze" small. Heard: the same as a sentence.
   await expect(pill.locator(".r-num")).toHaveText(String(r));
   await expect(pill.locator(".r-by")).toHaveText("TVmaze");
@@ -28,7 +28,7 @@ test("holding a rated match peeks at its rating too, right after its hours", asy
   await page.waitForTimeout(600);
   await page.mouse.up();
   const pill = page.getByRole("dialog").locator(".pill.rating");
-  await expect(pill).toMatchAriaSnapshot(`- listitem: Rated ${show("better-call-saul").rating} out of 10 on TVmaze`);
+  await expect(pill).toMatchAriaSnapshot(`- listitem: Rated ${show("better-call-saul").rating!.toFixed(1)} out of 10 on TVmaze`);
   await expect(pill.locator("xpath=preceding-sibling::li[1]")).toContainText("to finish");
 });
 
@@ -43,9 +43,9 @@ test("a match card shows a gold star and the rating on its poster, and an unrate
   test.skip(!("rating" in show("breaking-bad")), "the catalogue predates ratings: run the data job");
   await page.goto("/shows/breaking-bad/");
   const card = page.locator('.row:not(.further) a.card[href$="/better-call-saul/"]');
-  await expect(card.locator(".c-rate")).toHaveText(`rated ${show("better-call-saul").rating}`);
+  await expect(card.locator(".rate")).toHaveText(`rated ${show("better-call-saul").rating!.toFixed(1)}`);
   // On the poster, near its bottom-left corner (fonts shift it a pixel or so between systems).
-  const p = (await card.locator(".poster").boundingBox())!, r = (await card.locator(".c-rate").boundingBox())!;
+  const p = (await card.locator(".poster").boundingBox())!, r = (await card.locator(".rate").boundingBox())!;
   for (const gap of [r.x - p.x, p.y + p.height - (r.y + r.height)]) {
     expect(gap).toBeGreaterThanOrEqual(4);
     expect(gap).toBeLessThanOrEqual(12);
@@ -53,6 +53,22 @@ test("a match card shows a gold star and the rating on its poster, and an unrate
   // Every card's rating matches its show's, and a card without one has no star.
   for (const card of await page.locator(".row:not(.further) a.card[href^='/shows/']").all()) {
     const r = show((await card.getAttribute("href"))!.split("/")[2]).rating;
-    await expect(card.locator(".c-rate")).toHaveCount(r ? 1 : 0);
+    await expect(card.locator(".rate")).toHaveCount(r ? 1 : 0);
   }
+});
+
+test("home tiles carry the rating too: on the wall, and on search results built in the browser", async ({ page }) => {
+  test.skip(!("rating" in show("breaking-bad")), "the catalogue predates ratings: run the data job");
+  await page.goto("/");
+  const wall = page.locator(".wall a.tile").first();
+  const slug = (await wall.getAttribute("href"))!.split("/")[2];
+  await expect(wall.locator(".rate")).toHaveCount(show(slug).rating ? 1 : 0);
+  await page.locator("#q").fill("breaking bad");
+  const hit = page.locator('#results a.tile[href="/shows/breaking-bad/"]');
+  await expect(hit.locator(".rate")).toHaveText(`rated ${show("breaking-bad").rating!.toFixed(1)}`);
+  await expect(hit.locator(".rate svg")).toHaveAttribute("aria-hidden", "true");
+  await page.locator("#q").fill("panchayat");
+  const unrated = page.locator('#results a.tile[href="/shows/panchayat/"]');
+  await expect(unrated).toBeVisible();
+  await expect(unrated.locator(".rate")).toHaveCount(0);
 });
