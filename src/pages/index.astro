@@ -326,6 +326,9 @@ const collage = picksIn(catalogue).filter((s) => s.poster).slice(0, 8);
   }
   .track::-webkit-scrollbar { display: none; }
   .track li { flex: none; display: flex; width: 112px; scroll-snap-align: start; }
+  /* Snapping lines cards up for the arrows. A finger flings freely, as native rows do: snapping swaps a fling's own
+     momentum for a fixed snap animation, so a fast swipe stops somewhere it didn't aim. */
+  @media (pointer: coarse) { .track { scroll-snap-type: none; } }
   @media (min-width: 720px) { .track li { width: 140px; } }
   @media (min-width: 1280px) { .track li { width: 160px; } }
 

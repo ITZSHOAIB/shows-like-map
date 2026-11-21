@@ -474,6 +474,9 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
   }
   .track::-webkit-scrollbar { display: none; }
   .track li { flex: none; display: flex; scroll-snap-align: start; }
+  /* Snapping lines cards up for the arrows. A finger flings freely, as native rows do: snapping swaps a fling's own
+     momentum for a fixed snap animation, so a fast swipe stops somewhere it didn't aim. */
+  @media (pointer: coarse) { .track { scroll-snap-type: none; } }
   .peek-hint { display: flex; align-items: center; gap: var(--space-1); margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--text-sm); }
   .peek-hint[hidden] { display: none; }
   .track:focus-visible { outline-offset: -2px; }
