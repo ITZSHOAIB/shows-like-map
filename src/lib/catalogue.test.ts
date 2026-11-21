@@ -51,6 +51,11 @@ test("platform prefers the web channel, summary is plain text", () => {
   assert.equal(s.status, "ended");
 });
 
+test("the rating is TVmaze's average, and unknown when it has none", () => {
+  assert.equal(toShow({ id: 5, name: "Dark", status: "Ended", url: "u", rating: { average: 8.7 } }).rating, 8.7);
+  assert.equal(toShow({ id: 6, name: "Gullak", status: "Running", url: "u", rating: { average: null } }).rating, null);
+});
+
 test("cast is the top billed, creators come from TVmaze crew, else Wikidata", () => {
   const person = (name: string) => ({ person: { name } });
   const raw = {

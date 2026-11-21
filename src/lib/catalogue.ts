@@ -22,6 +22,7 @@ export interface Show {
   cast: string[]; // top billed, TVmaze
   poster: string | null; // TVmaze CDN, hotlinked
   summary: string | null; // plain text
+  rating: number | null; // TVmaze users' average out of 10, when it has one (often not for Indian shows)
   tvmaze: string; // show page on TVmaze, for credit
   wikidata: string | null; // Q-id
   wikipedia: string | null; // English article
@@ -96,6 +97,7 @@ export function toShow(raw: any, extra?: Extra, now = new Date()): Show {
     cast: unique((raw._embedded?.cast ?? []).map((c: any) => c.person.name)).slice(0, CAST),
     poster: raw.image?.medium ?? null,
     summary: plain(raw.summary),
+    rating: raw.rating?.average ?? null,
     tvmaze: raw.url,
     wikidata: extra?.wikidata ?? null,
     wikipedia: extra?.wikipedia ?? null,

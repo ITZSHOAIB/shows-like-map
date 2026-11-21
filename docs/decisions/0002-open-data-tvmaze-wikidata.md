@@ -32,6 +32,6 @@ TMDB and IMDb are not used anywhere on the site.
 - **Attribution:** credit and link TVmaze on every show page and in the footer.
 - **ShareAlike:** data we derive from TVmaze is published under CC BY-SA 4.0.
 - **Lost: live per-country streaming availability.** We show the platform a show airs on (from TVmaze) and link out to JustWatch for "where to watch in India".
-- **Lost: ratings for many shows.** TVmaze ratings are sparse for Indian web series.
+- **Lost: ratings for many shows.** TVmaze ratings are sparse for Indian web series (about 1 in 10, checked 2026-11-21, against 84% of the catalogue). We show TVmaze's rating only where it has one, credited to it; Rotten Tomatoes has no open API and Wikidata holds review scores for almost no series, so there is no fallback.
 - **Coverage (checked 2026-11-19):** every Indian web series we tried is on TVmaze (Panchayat, Gullak, Kudi Yedamaithe, Gram Chikitsalay…). Wikidata has 56,856 TV series, 3,041 of them Indian.
 - **Still to verify:** whether TVmaze's poster images fall under its copyright policy; see the plan.
