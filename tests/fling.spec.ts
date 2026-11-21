@@ -34,7 +34,7 @@ test.describe("on a touch screen", () => {
   });
 });
 
-test("with a mouse, rows still snap, so the arrows line cards up", async ({ page }) => {
+test("with a mouse, rows still snap, so a drag comes to rest on a card", async ({ page }) => {
   await page.goto("/shows/breaking-bad/");
   await expect(track(page)).toHaveCSS("scroll-snap-type", "x mandatory");
 });
