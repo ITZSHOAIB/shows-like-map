@@ -21,19 +21,30 @@ const SAMPLES: [number, string][] = [
 const ANTHOLOGY = new Set([5]);
 
 // The local TVmaze cache when there is one; a Cloudflare build fetches the few shows it needs instead.
+// TVmaze answers 429 when called too fast: wait and try again, and leave the show out rather than fail the build.
 async function episodesOf(id: number) {
   const file = `data/tvmaze/shows/${id}.json`;
-  const raw = existsSync(file) ? JSON.parse(readFileSync(file, "utf8"))
-    : await (await fetch(`https://api.tvmaze.com/shows/${id}?embed=episodes`)).json();
-  return { episodes: raw._embedded.episodes, averageRuntime: raw.averageRuntime as number | null };
+  let raw = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
+  for (let tries = 0; !raw && tries < 5; tries++) {
+    try {
+      const res = await fetch(`https://api.tvmaze.com/shows/${id}?embed=episodes`);
+      if (res.ok) raw = await res.json();
+      else console.warn(`payoff-prototype: TVmaze ${res.status} for ${id}`);
+    } catch (e) {
+      console.warn(`payoff-prototype: TVmaze fetch failed for ${id}: ${e}`);
+    }
+    if (!raw) await new Promise((r) => setTimeout(r, 2000 * (tries + 1)));
+  }
+  return raw?._embedded ? { episodes: raw._embedded.episodes, averageRuntime: raw.averageRuntime as number | null } : null;
 }
 
 const byId = new Map(loadCatalogue().map((s) => [s.id, s]));
 const shows = [];
 for (const [id, why] of SAMPLES) {
   const show = byId.get(id);
-  if (!show) continue;
-  const { episodes, averageRuntime } = await episodesOf(id);
+  const got = show && (await episodesOf(id));
+  if (!show || !got) continue;
+  const { episodes, averageRuntime } = got;
   shows.push({ show, why, arc: computeArc(episodes, show.status, ANTHOLOGY.has(id), averageRuntime) as Arc });
 }
 const VARIANTS = [
