@@ -32,7 +32,7 @@ export interface Arc {
 
 type Level = "great" | "good" | "decent" | "weak";
 // Where a show's average sits among the 1,196 with enough ratings: top quarter, above p40, above p15.
-const levelOf = (x: number): Level => (x >= 8.15 ? "great" : x >= 7.5 ? "good" : x >= 6.9 ? "decent" : "weak");
+export const levelOf = (x: number): Level => (x >= 8.15 ? "great" : x >= 7.5 ? "good" : x >= 6.9 ? "decent" : "weak");
 
 const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const rated = (eps: Ep[]) => eps.flatMap((e) => (e.rating === null ? [] : [e.rating]));

@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import Base from "../layouts/Base.astro";
 import { hours, loadCatalogue, STATUS_LABEL } from "../lib/catalogue";
 import { computeArc, type Arc } from "../prototype/arc";
-import Run from "../prototype/Run.astro";
+import Skyline from "../prototype/Skyline.astro";
 
 // A show for every case: slow starts, fades, an anthology, holds-up, a miniseries, still running, no ratings.
 const SAMPLES: [number, string][] = [
@@ -46,7 +46,7 @@ for (const [id, why] of SAMPLES) {
 
 <Base title="Payoff prototype" noindex>
   <main class="wrap pf">
-    <p class="eyebrow">Prototype · epic #42 · the run</p>
+    <p class="eyebrow">Prototype · epic #42 · the skyline</p>
     <nav class="pf-pick" aria-label="Sample shows">
       {shows.map(({ show, why }) => <a class="pill" href={`?s=${show.slug}`} data-s={show.slug} title={why}>{show.name}</a>)}
     </nav>
@@ -63,7 +63,7 @@ for (const [id, why] of SAMPLES) {
 
         {arc.enough ? (
           <>
-            <Run {arc} id={`run-${show.slug}`} />
+            <Skyline {arc} id={`sky-${show.slug}`} poster={show.poster} anthology={ANTHOLOGY.has(show.id)} />
             <details class="pf-table">
               <summary>The numbers</summary>
               <table>
