@@ -1,0 +1,76 @@
+---
+// PROTOTYPE (B): the hours road. Across is time spent watching; the shaded stretch is the good part, with flags where
+// it gets going and where it fades. Drag (or arrow keys) along it to read any point.
+import { hoursLabel, round, type Arc } from "./arc";
+import { road } from "./draw";
+const { arc, vt } = Astro.props as { arc: Arc; vt?: string };
+const W = 600, H = 140;
+const { x, y, paths, area } = road(arc, W, H);
+const pct = (h: number) => `${((h / arc.hours) * 100).toFixed(2)}%`;
+const from = arc.slowStart?.hours ?? 0, to = arc.fadeAfter?.hours ?? arc.hours;
+const stops = arc.episodes.filter((e) => e.rating !== null).map((e) => ({
+  at: (e.start + e.end) / 2 / arc.hours,
+  text: `Season ${e.season}, episode ${e.number} · ${hoursLabel(e.start)} in · rated ${e.rating!.toFixed(1)}${e.rating! >= arc.mean ? "" : ", below its usual"}`,
+}));
+const labelled = arc.seasons.filter((s) => (s.end - s.start) / arc.hours >= 0.07);
+---
+
+<div class="pf-road" style={vt && `view-transition-name:${vt}`}>
+  <p class="pf-read" aria-hidden="true">Drag along it</p>
+  <div class="pf-flags" aria-hidden="true">
+    {arc.slowStart && <span style={`left:${pct(arc.slowStart.hours)}`}>gets going · {hoursLabel(arc.slowStart.hours)}</span>}
+    {arc.fadeAfter && <span class="end" style={`left:${pct(arc.fadeAfter.hours)}`}>fades · {hoursLabel(arc.fadeAfter.hours)}</span>}
+    {arc.finale === "divides" && !arc.fadeAfter && <span class="end" style="left:100%">ending divides</span>}
+  </div>
+  <div class="pf-plot">
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      <rect class="good" x={x(from)} width={x(to) - x(from)} y="0" height={H} />
+      {arc.seasons.slice(1).map((s) => <line class="gap" x1={x(s.start)} x2={x(s.start)} y1="0" y2={H} vector-effect="non-scaling-stroke" />)}
+      <line class="usual" x1="0" x2={W} y1={y(arc.mean)} y2={y(arc.mean)} vector-effect="non-scaling-stroke" />
+      {area.map((d) => <path class="area" d={d} />)}
+      {paths.map((d) => <path class="draw" d={d} pathLength="1" vector-effect="non-scaling-stroke" />)}
+    </svg>
+    <span class="cursor" aria-hidden="true" hidden></span>
+    <input type="range" min="0" max={stops.length - 1} value="0" aria-label={`${arc.verdict}. Move through the episodes`}
+      aria-valuetext={stops[0]?.text} data-stops={JSON.stringify(stops)} />
+  </div>
+  <div class="pf-ticks" aria-hidden="true">
+    {labelled.map((s) => <span style={`left:${pct((s.start + s.end) / 2)}`}>S{s.n}</span>)}
+    <span class="total">{hoursLabel(arc.hours)}</span>
+  </div>
+  <p class="pf-key" aria-hidden="true"><i class="k-good"></i> the good part, {hoursLabel(to - from)} <i class="k-usual"></i> its usual · {round(arc.mean).toFixed(1)}</p>
+</div>
+
+<script>
+  for (const input of document.querySelectorAll<HTMLInputElement>(".pf-road input[type=range]")) {
+    const root = input.closest(".pf-road")!;
+    const read = root.querySelector<HTMLElement>(".pf-read")!, cursor = root.querySelector<HTMLElement>(".cursor")!;
+    const stops: { at: number; text: string }[] = JSON.parse(input.dataset.stops!);
+    const show = () => {
+      const s = stops[+input.value];
+      input.setAttribute("aria-valuetext", s.text);
+      read.textContent = s.text;
+      cursor.hidden = false;
+      cursor.style.left = `${s.at * 100}%`;
+    };
+    input.addEventListener("input", show);
+    // A finger on the chart picks the nearest episode under it, and keeps following it sideways.
+    input.addEventListener("pointerdown", (e) => {
+      const b = input.getBoundingClientRect();
+      const at = (x: number) => (x - b.left) / b.width;
+      const pick = (x: number) => {
+        let i = 0;
+        for (let j = 0; j < stops.length; j++) if (Math.abs(stops[j].at - at(x)) < Math.abs(stops[i].at - at(x))) i = j;
+        input.value = String(i);
+        show();
+      };
+      e.preventDefault();
+      input.focus({ preventScroll: true });
+      input.setPointerCapture(e.pointerId);
+      pick(e.clientX);
+      const move = (m: PointerEvent) => pick(m.clientX);
+      input.addEventListener("pointermove", move);
+      input.addEventListener("pointerup", () => input.removeEventListener("pointermove", move), { once: true });
+    });
+  }
+</script>

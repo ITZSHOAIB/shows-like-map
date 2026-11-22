@@ -1,0 +1,28 @@
+---
+// PROTOTYPE (D): every episode as a square, a row per season. Amber is above the show's usual, grey below, the
+// stronger the further off. Folded away by default on the real page: it's for people who want the detail.
+import { round, type Arc } from "./arc";
+const { arc } = Astro.props as { arc: Arc };
+const top = Math.max(...arc.episodes.map((e) => e.rating ?? 0));
+const tone = (r: number) => Math.min(1, 0.2 + (Math.abs(r - arc.mean) / 1.2) * 0.8).toFixed(2);
+---
+
+<details class="pf-heat" open>
+  <summary>Episode by episode</summary>
+  <div class="pf-grid" tabindex="0" role="group" aria-label="Episode ratings by season. The numbers are in the table below">
+    {arc.seasons.map((s) => (
+      <div class="row">
+        <span class="sn">S{s.n}</span>
+        <ol>
+          {s.eps.map((e) => (
+            <li class:list={[e.rating === null ? "none" : e.rating >= arc.mean ? "up" : "down"]} style={e.rating !== null && `--a:${tone(e.rating)}`}
+              title={`S${e.season} E${e.number}: ${e.rating?.toFixed(1) ?? "not rated"}`}>
+              {e.rating === top ? "★" : ""}
+            </li>
+          ))}
+        </ol>
+      </div>
+    ))}
+  </div>
+  <p class="pf-key" aria-hidden="true"><i class="k-down"></i> below its usual ({round(arc.mean).toFixed(1)}) <i class="k-up"></i> above · ★ its best episode</p>
+</details>

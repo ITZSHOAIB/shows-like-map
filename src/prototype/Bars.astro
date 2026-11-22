@@ -1,0 +1,61 @@
+---
+// PROTOTYPE (A): a bar per season around the show's own usual level: amber above it, grey below, the best starred.
+// Tap a season for its episodes.
+import { hoursLabel, round, type Arc } from "./arc";
+import { yOf } from "./draw";
+const { arc, id } = Astro.props as { arc: Arc; id: string };
+const W = 600, H = 130, y = yOf(H), base = y(arc.mean);
+const n = arc.seasons.length, band = W / n, bw = Math.min(band * 0.62, 56);
+const EW = 600, EH = 110, ey = yOf(EH);
+---
+
+<div class="pf-bars" style={`--n:${n}`}>
+  <div class="pf-plot">
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      {arc.seasons.map((s, i) => s.mean === null ? (
+        <rect class="bar none" x={i * band + (band - bw) / 2} y={base - 2} width={bw} height="4" rx="2" />
+      ) : (
+        <rect class:list={["bar", s.mean >= arc.mean ? "up" : "down", s === arc.best && "best"]} style={`--i:${i}`}
+          x={i * band + (band - bw) / 2} y={Math.min(y(s.mean), base)} width={bw} height={Math.max(Math.abs(y(s.mean) - base), 3)} rx="3" />
+      ))}
+      <line class="usual" x1="0" x2={W} y1={base} y2={base} vector-effect="non-scaling-stroke" />
+    </svg>
+    <span class="usual-label" style={`top:${(base / H) * 100}%`}>its usual · {round(arc.mean).toFixed(1)}</span>
+  </div>
+  <div class="pf-seasons">
+    {arc.seasons.map((s) => (
+      <button type="button" aria-expanded="false" aria-controls={`${id}-s${s.n}`} class:list={[s === arc.best && "best"]}>
+        {s === arc.best && <span aria-hidden="true">★</span>}S{s.n}
+        <span class="sr-only">{s.mean === null ? ": not enough ratings" : `: ${s.mean >= arc.mean ? "above" : "below"} its usual${s === arc.best ? ", its best" : ""}`}</span>
+      </button>
+    ))}
+  </div>
+  {arc.seasons.map((s) => {
+    const ew = EW / s.eps.length;
+    return (
+      <div class="pf-season" id={`${id}-s${s.n}`} hidden>
+        <p><b>Season {s.n}</b> · {s.eps.length} episodes · {hoursLabel(s.end - s.start)}{s === arc.best && " · its best"}</p>
+        <svg viewBox={`0 0 ${EW} ${EH}`} preserveAspectRatio="none" aria-hidden="true">
+          <line class="usual" x1="0" x2={EW} y1={ey(arc.mean)} y2={ey(arc.mean)} vector-effect="non-scaling-stroke" />
+          {s.eps.map((e, i) => e.rating !== null && (
+            <rect class:list={["bar", e.rating >= arc.mean ? "up" : "down"]} style={`--i:${i}`}
+              x={i * ew + ew * 0.2} width={ew * 0.6} y={Math.min(ey(e.rating), ey(arc.mean))} height={Math.max(Math.abs(ey(e.rating) - ey(arc.mean)), 2)} rx="1.5" />
+          ))}
+        </svg>
+      </div>
+    );
+  })}
+</div>
+
+<script>
+  for (const bars of document.querySelectorAll<HTMLElement>(".pf-bars")) {
+    const buttons = [...bars.querySelectorAll<HTMLButtonElement>(".pf-seasons button")];
+    for (const b of buttons) b.addEventListener("click", () => {
+      const open = b.getAttribute("aria-expanded") !== "true";
+      for (const o of buttons) {
+        o.setAttribute("aria-expanded", String(o === b && open));
+        document.getElementById(o.getAttribute("aria-controls")!)!.hidden = !(o === b && open);
+      }
+    });
+  }
+</script>

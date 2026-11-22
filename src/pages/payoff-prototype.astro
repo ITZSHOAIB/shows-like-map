@@ -1,0 +1,271 @@
+---
+// PROTOTYPE (payoff-prototype branch, epic #42): five ways to show whether a show is worth getting through, on one
+// page. ?s= picks the show, ?p= the variant (a–e). Throwaway: never merged. Research: docs/research/payoff-curve.md.
+import { existsSync, readFileSync } from "node:fs";
+import Base from "../layouts/Base.astro";
+import { hours, loadCatalogue, STATUS_LABEL } from "../lib/catalogue";
+import { computeArc, type Arc } from "../prototype/arc";
+import { spark } from "../prototype/draw";
+import Bars from "../prototype/Bars.astro";
+import Facts from "../prototype/Facts.astro";
+import Heat from "../prototype/Heat.astro";
+import Road from "../prototype/Road.astro";
+import Story from "../prototype/Story.astro";
+
+// A show for every case: slow starts, fades, an anthology, holds-up, a miniseries, still running, no ratings.
+const SAMPLES: [number, string][] = [
+  [174, "slow start"], [179, "slow first episodes"], [491, "slow start, many seasons"], [175, "fades"], [171, "fades, divisive end"],
+  [82, "fades, divisive end"], [526, "slow start, fades, high end"], [161, "divisive end"], [169, "holds up"], [618, "gets better"],
+  [123, "holds up"], [138, "slow start"], [5, "anthology"], [30770, "miniseries"], [44933, "still running"], [47014, "no ratings"],
+];
+const ANTHOLOGY = new Set([5]);
+
+// The local TVmaze cache when there is one; a Cloudflare build fetches the few shows it needs instead.
+async function episodesOf(id: number) {
+  const file = `data/tvmaze/shows/${id}.json`;
+  const raw = existsSync(file) ? JSON.parse(readFileSync(file, "utf8"))
+    : await (await fetch(`https://api.tvmaze.com/shows/${id}?embed=episodes`)).json();
+  return { episodes: raw._embedded.episodes, averageRuntime: raw.averageRuntime as number | null };
+}
+
+const byId = new Map(loadCatalogue().map((s) => [s.id, s]));
+const shows = [];
+for (const [id, why] of SAMPLES) {
+  const show = byId.get(id);
+  if (!show) continue;
+  const { episodes, averageRuntime } = await episodesOf(id);
+  shows.push({ show, why, arc: computeArc(episodes, show.status, ANTHOLOGY.has(id), averageRuntime) as Arc });
+}
+const VARIANTS = [
+  ["a", "Bars"], ["b", "Road"], ["c", "Peek"], ["d", "Grid"], ["e", "Story"],
+];
+---
+
+<Base title="Payoff prototype" noindex>
+  <main class="wrap pf">
+    <p class="eyebrow">Prototype · epic #42 · is it worth getting through?</p>
+    <nav class="pf-pick" aria-label="Sample shows">
+      {shows.map(({ show, why }) => <a class="pill" href={`?s=${show.slug}`} data-s={show.slug} title={why}>{show.name}</a>)}
+    </nav>
+
+    {shows.map(({ show, why, arc }) => (
+      <section class="pf-show" data-s={show.slug} hidden>
+        <header class="pf-head">
+          {show.poster && <img class="poster" src={show.poster} alt="" width="72" height="108" />}
+          <div>
+            <h1>{show.name}</h1>
+            <p class="muted">{STATUS_LABEL[show.status]} · {show.seasons} seasons{show.minutes !== null && ` · ${hours(show.minutes)}`} · sample for “{why}”</p>
+          </div>
+        </header>
+
+        {!arc.enough ? (
+          <p class="pf-none">Not enough episode ratings yet to say how it plays out.</p>
+        ) : (
+          <>
+            <div class="pf-v" data-v="a" hidden><Facts {arc} /><Bars {arc} id={`${show.slug}-a`} /></div>
+            <div class="pf-v" data-v="b" hidden><Facts {arc} /><Road {arc} /></div>
+            <div class="pf-v" data-v="c" hidden>
+              <div class="pf-peek">
+                {show.poster && <img class="poster" src={show.poster} alt="" width="84" height="126" />}
+                <div>
+                  <p class="p-name">{show.name}</p>
+                  <p class="p-verdict">{arc.verdict}</p>
+                  <svg class="p-spark" viewBox="0 0 120 32" preserveAspectRatio="none" aria-hidden="true" style={`view-transition-name:pf-${show.slug}`}>
+                    <path class="draw" d={spark(arc, 120, 32)} pathLength="1" vector-effect="non-scaling-stroke" />
+                  </svg>
+                  <button type="button" class="pill p-open">Open the show</button>
+                </div>
+              </div>
+              <div class="pf-opened" hidden>
+                <Facts {arc} />
+                <Road {arc} vt={`pf-${show.slug}`} />
+                <button type="button" class="pill p-back">Back to the peek</button>
+              </div>
+            </div>
+            <div class="pf-v" data-v="d" hidden><p class="verdict">{arc.verdict}</p><Heat {arc} /></div>
+            <div class="pf-v" data-v="e" hidden><p class="verdict">{arc.verdict}</p><Story {arc} id={`${show.slug}-e`} /></div>
+            <details class="pf-table">
+              <summary>The numbers</summary>
+              <table>
+                <thead><tr><th scope="col">Season</th><th scope="col">Average</th><th scope="col">Episodes rated</th><th scope="col">Hours in</th></tr></thead>
+                <tbody>
+                  {arc.seasons.map((s) => (
+                    <tr><th scope="row">{s.n}{s === arc.best && " ★"}</th><td>{s.mean?.toFixed(1) ?? "–"}</td><td>{s.rated} of {s.eps.length}</td><td>{Math.round(s.start)}–{Math.round(s.end)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          </>
+        )}
+      </section>
+    ))}
+
+    <nav class="pf-bar" aria-label="Variants">
+      {VARIANTS.map(([v, name]) => <a class="pill" href={`?p=${v}`} data-p={v}><b>{v.toUpperCase()}</b> {name}</a>)}
+    </nav>
+  </main>
+</Base>
+
+<script>
+  const q = new URLSearchParams(location.search);
+  let s = q.get("s") ?? "parks-and-recreation", p = q.get("p") ?? "a";
+  const apply = () => {
+    for (const el of document.querySelectorAll<HTMLElement>(".pf-show")) el.hidden = el.dataset.s !== s;
+    for (const el of document.querySelectorAll<HTMLElement>(".pf-v")) el.hidden = el.dataset.v !== p;
+    for (const a of document.querySelectorAll<HTMLAnchorElement>(".pf-pick a")) {
+      a.classList.toggle("is-on", a.dataset.s === s);
+      a.href = `?s=${a.dataset.s}&p=${p}`;
+      if (a.dataset.s === s) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+    }
+    for (const a of document.querySelectorAll<HTMLAnchorElement>(".pf-bar a")) {
+      a.classList.toggle("is-on", a.dataset.p === p);
+      a.href = `?s=${s}&p=${a.dataset.p}`;
+      if (a.dataset.p === p) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+    }
+    history.replaceState(null, "", `?s=${s}&p=${p}`);
+  };
+  document.addEventListener("click", (e) => {
+    const a = (e.target as Element).closest<HTMLAnchorElement>(".pf-pick a, .pf-bar a");
+    if (!a) return;
+    e.preventDefault();
+    if (a.dataset.s) s = a.dataset.s;
+    if (a.dataset.p) p = a.dataset.p;
+    apply();
+  });
+  apply();
+
+  // C: the peek's little line grows into the show page's road, as the poster does between pages.
+  for (const v of document.querySelectorAll<HTMLElement>('.pf-v[data-v="c"]')) {
+    const peek = v.querySelector<HTMLElement>(".pf-peek")!, opened = v.querySelector<HTMLElement>(".pf-opened")!;
+    const swap = (open: boolean) => {
+      const go = () => { peek.hidden = open; opened.hidden = !open; (open ? opened.querySelector("input") : peek.querySelector("button"))?.focus({ preventScroll: true }); };
+      if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) go();
+      else document.startViewTransition(go);
+    };
+    v.querySelector(".p-open")!.addEventListener("click", () => swap(true));
+    v.querySelector(".p-back")!.addEventListener("click", () => swap(false));
+  }
+</script>
+
+<style is:global>
+  .pf { padding-top: var(--space-6); padding-bottom: 120px; }
+  .pf h1 { font-size: clamp(26px, 6vw, 40px); margin: 0; }
+  .pf-pick { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-3) 0 var(--space-6); }
+  .pf-pick a { min-height: 32px; font-size: var(--text-sm); }
+  .pf-head { display: flex; gap: var(--space-4); align-items: center; margin-bottom: var(--space-6); }
+  .pf-head .poster { width: 72px; flex: none; }
+  .pf-head p { margin: var(--space-1) 0 0; font-size: var(--text-sm); }
+  .pf-none { color: var(--muted); font-size: var(--text-md); }
+  .pf-v { max-width: 720px; }
+
+  .verdict { font: var(--display-weight) clamp(21px, 4.6vw, 30px) / 1.2 var(--font-display); letter-spacing: var(--display-tracking); margin: 0 0 var(--space-3); text-wrap: balance; }
+  .pf-facts { list-style: none; padding: 0; margin: 0 0 var(--space-6); display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: var(--text-sm); color: var(--muted); }
+  .pf-facts b { color: var(--text); font-weight: 700; margin-right: 4px; }
+
+  /* Shared chart pieces. The colours: amber above the show's usual, grey below, never red and green. */
+  .pf-plot { position: relative; }
+  .pf-plot svg, .pf-season svg, .pf-story svg { display: block; width: 100%; overflow: visible; }
+  .bar.up { fill: var(--accent); }
+  .bar.down { fill: rgb(154 160 178 / 0.55); }
+  .bar.none { fill: rgb(255 255 255 / 0.12); }
+  .bar.best { fill: #ffe29e; }
+  .usual { stroke: rgb(255 255 255 / 0.5); stroke-width: 1; stroke-dasharray: 4 4; }
+  .good { fill: color-mix(in srgb, var(--accent) 13%, transparent); }
+  .gap { stroke: var(--bg); stroke-width: 3; }
+  .area { fill: color-mix(in srgb, var(--accent) 10%, transparent); animation: fade 0.6s var(--ease) both; }
+  .draw { fill: none; stroke: var(--accent); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1; animation: draw 0.6s var(--ease) both; }
+  .faint { fill: none; stroke: rgb(255 255 255 / 0.55); stroke-width: 1.5; }
+  .pf-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--muted); margin: var(--space-3) 0 0; }
+  .pf-key i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin-left: 8px; }
+  .pf-key i:first-child { margin-left: 0; }
+  .k-good { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .k-usual { height: 0 !important; border-top: 1px dashed rgb(255 255 255 / 0.6); }
+  .k-up { background: var(--accent); }
+  .k-down { background: rgb(154 160 178 / 0.55); }
+
+  /* A: bars. */
+  .pf-bars .pf-plot svg { height: 130px; }
+  .usual-label { position: absolute; right: 0; translate: 0 -120%; font-size: var(--text-xs); color: var(--muted); background: var(--bg); padding: 0 4px; border-radius: 3px; }
+  .pf-seasons { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 2px; margin-top: var(--space-2); }
+  .pf-seasons button { min-height: 32px; padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); font: 600 var(--text-sm) var(--font-body); cursor: pointer; }
+  .pf-seasons button.best { color: var(--accent); }
+  .pf-seasons button:hover, .pf-seasons button[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+  .pf-seasons button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .pf-season { margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-media); background: var(--surface); animation: fade 0.25s var(--ease) both; }
+  .pf-season p { margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--muted); }
+  .pf-season b { color: var(--text); }
+  .pf-season svg { height: 110px; }
+  .bar { transform-box: fill-box; transform-origin: center bottom; animation: grow 0.45s var(--ease) both; animation-delay: calc(min(var(--i, 0), 12) * 25ms); }
+  .bar.down { transform-origin: center top; }
+
+  /* B: the hours road. */
+  .pf-road .pf-plot svg { height: 150px; }
+  .pf-read { min-height: 1.4em; margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pf-flags { position: relative; height: 22px; font-size: var(--text-xs); }
+  .pf-flags span { position: absolute; bottom: 4px; white-space: nowrap; padding-left: 6px; border-left: 2px solid var(--accent); color: var(--text); }
+  .pf-flags span.end { translate: -100% 0; padding: 0 6px 0 0; border-left: 0; border-right: 2px solid var(--muted); }
+  .pf-ticks { position: relative; height: 22px; margin-top: 4px; font-size: var(--text-xs); color: var(--muted); }
+  .pf-ticks span { position: absolute; translate: -50% 0; }
+  .pf-ticks .total { right: 0; translate: 0; color: var(--text); }
+  .pf-road input[type="range"] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; touch-action: pan-y; }
+  .pf-road .pf-plot:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+  .cursor { position: absolute; top: 0; bottom: 0; width: 2px; translate: -1px 0; background: var(--text); pointer-events: none; }
+
+  /* C: the peek. */
+  .pf-peek { display: flex; gap: var(--space-4); max-width: 420px; padding: var(--space-4); border-radius: 12px; background: #151821; box-shadow: var(--shadow-2); border: 1px solid var(--line); }
+  .pf-peek .poster { width: 84px; flex: none; }
+  .p-name { margin: 0; font: 800 var(--text-lg) / 1.2 var(--font-display); }
+  .p-verdict { margin: var(--space-1) 0 var(--space-2); font-size: var(--text-sm); }
+  .p-spark { width: 120px; height: 32px; margin-bottom: var(--space-3); }
+  .pf-opened .p-back { margin-top: var(--space-4); }
+  .p-open, .p-back, .pf-story > button { cursor: pointer; font: 600 var(--text-sm) var(--font-body); color: var(--text); }
+  ::view-transition-group(*) { animation-duration: 0.4s; animation-timing-function: var(--ease); }
+
+  /* D: heatmap. */
+  .pf-heat summary { cursor: pointer; font-weight: 600; margin-bottom: var(--space-3); }
+  .pf-grid { display: grid; gap: 3px; overflow-x: auto; padding-bottom: var(--space-2); }
+  .pf-grid .row { display: flex; align-items: center; gap: 6px; }
+  .pf-grid .sn { width: 28px; flex: none; font-size: var(--text-xs); color: var(--muted); }
+  .pf-grid ol { display: flex; gap: 3px; list-style: none; padding: 0; margin: 0; }
+  .pf-grid li { width: 20px; height: 20px; flex: none; border-radius: 3px; display: grid; place-items: center; font-size: 11px; color: #17130a; }
+  .pf-grid li.up { background: rgb(255 211 107 / var(--a)); }
+  .pf-grid li.down { background: rgb(154 160 178 / calc(var(--a) * 0.7)); }
+  .pf-grid li.none { background: rgb(255 255 255 / 0.05); }
+
+  /* E: story cards. */
+  .pf-story ol { display: flex; gap: var(--space-3); overflow-x: auto; scroll-snap-type: x mandatory; list-style: none; padding: var(--space-4) 0; margin: 0; }
+  .pf-story ol[hidden] { display: none; }
+  .pf-story ol:focus-visible, .pf-grid:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .pf-story li { flex: 0 0 min(78%, 300px); scroll-snap-align: start; padding: var(--space-4); border-radius: 12px; background: var(--surface); border: 1px solid var(--line); animation: rise 0.45s var(--ease) both; animation-delay: calc(var(--i) * 80ms); }
+  .pf-story li > p:not(.eyebrow) { font: 700 var(--text-lg) / 1.3 var(--font-display); margin: var(--space-2) 0 var(--space-4); min-height: 4.2em; }
+  .pf-story svg { height: 60px; }
+
+  .pf-table { margin-top: var(--space-8); font-size: var(--text-sm); color: var(--muted); }
+  .pf-table summary { cursor: pointer; }
+  .pf-table table { border-collapse: collapse; margin-top: var(--space-2); }
+  .pf-table :is(th, td) { padding: 4px 12px 4px 0; text-align: left; font-variant-numeric: tabular-nums; }
+
+  .pf-bar { position: fixed; z-index: 5; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); translate: -50% 0; display: flex; gap: 4px; max-width: calc(100% - 16px); overflow-x: auto; padding: 6px; border-radius: 10px; background: rgb(21 24 33 / 0.92); backdrop-filter: blur(8px); border: 1px solid var(--line); box-shadow: var(--shadow-2); }
+  .pf-bar a { white-space: nowrap; font-size: var(--text-sm); padding-inline: 9px; }
+
+  @keyframes draw { from { stroke-dashoffset: 1; } }
+  @keyframes grow { from { transform: scaleY(0); } }
+  @keyframes fade { from { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .pf *, .pf *::before { animation: none !important; }
+  }
+  @media (forced-colors: active) {
+    .pf svg, .pf-grid li, .cursor, .pf-key i { forced-color-adjust: none; }
+    .bar.up, .bar.best { fill: Highlight; }
+    .bar.down, .bar.none { fill: GrayText; }
+    .pf-grid li.up { background: Highlight; color: HighlightText; }
+    .pf-grid li.down { background: GrayText; }
+    .draw, .faint { stroke: CanvasText; }
+    .usual { stroke: GrayText; }
+    .gap { stroke: Canvas; }
+    .good { fill: transparent; stroke: GrayText; stroke-dasharray: 2 3; }
+    .area { fill: transparent; }
+    .cursor { background: Highlight; }
+    .k-good { outline: 1px dashed GrayText; } .k-up { background: Highlight; } .k-down { background: GrayText; }
+  }
+</style>
