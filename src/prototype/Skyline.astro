@@ -111,6 +111,7 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
     <span class="sky-typical" style={`top:calc(var(--ground) * ${(1 - frac(TYPICAL)).toFixed(3)})`} aria-hidden="true"><b>typical show</b></span>
     <div class="sky-town" style={peak ? `--peak:${pct((peak.x0 + peak.x1) / 2, W)}` : undefined}>
       <div class="sky-city" aria-hidden="true">
+        <div class="sky-ghost"></div>
         {arc.best && !single && (
           <svg class="sky-glow" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
             <defs><filter id={`${id}-blur`} x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="10" /></filter></defs>
@@ -221,6 +222,23 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
     filter: saturate(1.15) brightness(1.05);
   }
   .sky-block.dim { filter: grayscale(1) brightness(0.42) contrast(0.9); }
+
+  /* PROTOTYPE picture fits (?fit=): only how the picture sits in the buildings, never the buildings themselves.
+     fill: covers the stage. whole: the whole picture, sharp, with a soft copy of itself filling the sides.
+     ghost: the full picture faint in the sky too. both: whole + ghost. */
+  .sky-ghost { display: none; position: absolute; inset: 0; background: var(--art, none) var(--art-at, center) / cover; }
+  :is(.sky-block, .sky-ghost)::before, :is(.sky-block, .sky-ghost)::after { content: ""; position: absolute; inset: 0; display: none; }
+  .sky-stage:is([data-fit="ghost"], [data-fit="both"]) .sky-ghost {
+    display: block; filter: brightness(0.3) saturate(0.7);
+    -webkit-mask: linear-gradient(transparent, #000 45%); mask: linear-gradient(transparent, #000 45%);
+  }
+  .sky-stage:is([data-fit="whole"], [data-fit="both"]) :is(.sky-block, .sky-ghost) { background: none; }
+  .sky-stage:is([data-fit="whole"], [data-fit="both"]) :is(.sky-block, .sky-ghost)::before {
+    display: block; background: var(--art, none) center / cover; filter: blur(18px) brightness(0.5) saturate(1.1); scale: 1.08;
+  }
+  .sky-stage:is([data-fit="whole"], [data-fit="both"]) :is(.sky-block, .sky-ghost)::after {
+    display: block; background: linear-gradient(rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.03) 60%), var(--art, none) center / contain no-repeat;
+  }
   .sky-glow path { fill: var(--accent); opacity: 0.38; }
   .sky-roofs path { stroke: rgb(255 255 255 / 0.75); stroke-width: 1.5px; fill: none; }
   .sky-roofs path.dim { stroke: rgb(255 255 255 / 0.22); }

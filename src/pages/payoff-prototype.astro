@@ -66,6 +66,9 @@ for (const [id, why] of SAMPLES) {
     <nav class="pf-pick" aria-label="Sample shows">
       {shows.map(({ show, why }) => <a class="pill" href={`?s=${show.slug}`} data-s={show.slug} title={why}>{show.name}</a>)}
     </nav>
+    <nav class="pf-pick pf-fit" aria-label="Picture fit">
+      {[["fill", "Fill"], ["whole", "Whole"], ["ghost", "Ghost"], ["both", "Whole + ghost"]].map(([k, label]) => <a class="pill" href={`?fit=${k}`} data-fit={k}>{label}</a>)}
+    </nav>
 
     {shows.map(({ show, why, arc, backdrop }) => (
       <section class="pf-show" data-s={show.slug} hidden>
@@ -103,19 +106,26 @@ for (const [id, why] of SAMPLES) {
 <script>
   const q = new URLSearchParams(location.search);
   let s = q.get("s") ?? "parks-and-recreation";
+  let fit = q.get("fit") ?? "both";
   const apply = () => {
     for (const el of document.querySelectorAll<HTMLElement>(".pf-show")) el.hidden = el.dataset.s !== s;
     for (const a of document.querySelectorAll<HTMLAnchorElement>(".pf-pick a")) {
       a.classList.toggle("is-on", a.dataset.s === s);
       if (a.dataset.s === s) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
     }
-    history.replaceState(null, "", `?s=${s}`);
+    for (const st of document.querySelectorAll<HTMLElement>(".sky-stage")) st.dataset.fit = fit;
+    for (const a of document.querySelectorAll<HTMLAnchorElement>(".pf-fit a")) {
+      a.classList.toggle("is-on", a.dataset.fit === fit);
+      if (a.dataset.fit === fit) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+    }
+    history.replaceState(null, "", `?s=${s}&fit=${fit}`);
   };
   document.addEventListener("click", (e) => {
     const a = (e.target as Element).closest<HTMLAnchorElement>(".pf-pick a");
     if (!a) return;
     e.preventDefault();
-    s = a.dataset.s!;
+    if (a.dataset.fit) fit = a.dataset.fit;
+    else s = a.dataset.s!;
     apply();
   });
   apply();
@@ -125,6 +135,8 @@ for (const [id, why] of SAMPLES) {
   .pf { padding-top: var(--space-6); padding-bottom: 80px; }
   .pf h1 { font-size: var(--text-lg); margin: 0; }
   .pf-pick { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-3) 0 var(--space-8); }
+  .pf-pick:has(+ .pf-fit) { margin-bottom: var(--space-2); }
+  .pf-fit::before { content: "Picture"; align-self: center; margin-right: 4px; font-size: var(--text-xs); color: var(--muted); }
   .pf-pick a { min-height: 32px; font-size: var(--text-sm); }
   .pf-show { max-width: 920px; }
   .pf-head { display: flex; gap: var(--space-3); align-items: center; }
