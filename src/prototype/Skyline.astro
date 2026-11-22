@@ -3,18 +3,16 @@
 // as its rating, every season a block, a street between. Grey where it's warming up or past its best; the best season
 // lit amber. Tap a season (or an episode, for a single season) to lift it and hear what it is.
 import { CEIL, FLOOR, endingWords, hoursLabel, levelOf, round, type Arc } from "./arc";
-const { arc, id, poster, backdrop, anthology = false } = Astro.props as {
-  arc: Arc; id: string; poster: string | null; backdrop: string | null; anthology?: boolean;
+const { arc, id, poster, anthology = false } = Astro.props as {
+  arc: Arc; id: string; poster: string | null; anthology?: boolean;
 };
 
 const W = 1000, H = 300, STREET = 7;
 // A building is as wide as its hours, measured against the sky's height: a short show stands as a small town in the
-// middle, a long one fills the width. A town narrower than it is tall wears the poster; a wider one the backdrop.
+// middle, a long one fills the width.
 const TOWN = 0.2; // town width, in sky heights, per hour
-const narrow = arc.hours * TOWN < 1.2;
-const pick = narrow ? poster : backdrop ?? poster;
-const art = pick?.replace("/medium_portrait/", "/original_untouched/") ?? null;
-const artAt = pick === backdrop ? "center 35%" : "center 22%";
+const art = poster?.replace("/medium_portrait/", "/original_untouched/") ?? null;
+const artAt = "center 22%";
 
 // The shared window: a 6 is a stump, a 9.5 nearly fills the sky (headroom left for the lift and the star).
 const frac = (v: number) => 0.05 + 0.83 * ((Math.min(CEIL, Math.max(FLOOR, v)) - FLOOR) / (CEIL - FLOOR));
