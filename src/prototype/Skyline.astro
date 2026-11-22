@@ -123,7 +123,7 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
         ))}
         <svg class="sky-roofs" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
           {buildings.map((b, i) => (
-            <path data-spot={spotOf(b)} style={`--i:${single ? i : si.get(b.e.season)}`} class:list={[!b.lit && "dim", (single ? b === peak : b.best) && "best"]}
+            <path data-spot={spotOf(b)} style={`--i:${single ? i : si.get(b.e.season)};--h:${(H - b.y).toFixed(1)}`} class:list={[!b.lit && "dim", (single ? b === peak : b.best) && "best"]}
               d={`M${b.x0.toFixed(1)} ${b.y.toFixed(1)}H${b.x1.toFixed(1)}`} vector-effect="non-scaling-stroke" />
           ))}
         </svg>
@@ -218,7 +218,7 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
   .sky-block, .sky-glow, .sky-roofs { position: absolute; inset: 0; width: 100%; height: 100%; }
   .sky-block {
     background: linear-gradient(rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.03) 60%), var(--art, linear-gradient(#ffd36b, #8a5a2b)) var(--art-at, center) / cover;
-    -webkit-mask: var(--mask) 0 0 / 100% 100% no-repeat; mask: var(--mask) 0 0 / 100% 100% no-repeat;
+    -webkit-mask: var(--mask) 0 100% / 100% 100% no-repeat; mask: var(--mask) 0 100% / 100% 100% no-repeat;
     filter: saturate(1.15) brightness(1.05);
   }
   .sky-block.dim { filter: grayscale(1) brightness(0.42) contrast(0.9); }
@@ -257,21 +257,23 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
   .sky-say { min-height: 1.5em; margin: var(--space-3) 0 var(--space-6); font: 700 clamp(17px, 3.4vw, 22px) / 1.3 var(--font-display); color: var(--text); }
   .sky-say span { font: 500 var(--text-sm) var(--font-body); color: var(--muted); }
 
-  /* Arriving, once: the city rises season by season on a dark stage, then the picture fades in around it as the
-     marks land. --end is when the last season is up. */
+  /* Arriving, once. The picture is one fixed surface and the chart is glass over it: the bars grow up from the ground,
+     uncovering it (the picture never moves), each roof riding its bar's top. Then the marks land, and last the rest of
+     the same picture fades in around them. --end is when the last season is up. */
   .sky { --end: calc(var(--n) * var(--step) + 450ms); }
-  .sky:not(.in) .sky-ghost { opacity: 0; scale: 1.05; }
+  .sky:not(.in) .sky-ghost { opacity: 0; }
   .sky:not(.in) .sky-back { opacity: 0; }
-  .sky:not(.in) :is(.sky-block, .sky-glow) { translate: 0 100%; }
-  .sky:not(.in) .sky-roofs path { translate: 0 300px; }
+  .sky:not(.in) .sky-block { -webkit-mask-size: 100% 0%; mask-size: 100% 0%; }
+  .sky:not(.in) .sky-roofs path { translate: 0 calc(var(--h) * 1px); }
   .sky:not(.in) .sky-glow { opacity: 0; }
   .sky:not(.in) .sky-typical { clip-path: inset(-24px 100% -4px 0); }
   .sky:not(.in) .sky-peak { opacity: 0; scale: 0.3; }
   .sky:not(.in) :is(.sky-spots button span, .sky-say, .sky-tiles > div) { opacity: 0; translate: 0 8px; }
-  .sky.in:not(.done) .sky-ghost { transition: opacity 0.6s var(--ease) calc(var(--end) + 300ms), scale 0.6s var(--ease) calc(var(--end) + 300ms); }
-  .sky.in:not(.done) .sky-back { transition: opacity 0.6s var(--ease) calc(var(--end) + 300ms); }
-  .sky.in:not(.done) :is(.sky-block, .sky-roofs path) { transition: translate 0.55s var(--ease) calc(var(--i, 0) * var(--step)); }
-  .sky.in:not(.done) .sky-glow { transition: translate 0.55s var(--ease), opacity 0.5s var(--ease) calc(var(--end) - 150ms); }
+  .sky.in:not(.done) .sky-ghost { transition: opacity 1.4s var(--ease) calc(var(--end) * 0.45); }
+  .sky.in:not(.done) .sky-back { transition: opacity 1.2s var(--ease) calc(var(--end) * 0.6); }
+  .sky.in:not(.done) .sky-block { transition: -webkit-mask-size 0.55s var(--ease) calc(var(--i, 0) * var(--step)), mask-size 0.55s var(--ease) calc(var(--i, 0) * var(--step)); }
+  .sky.in:not(.done) .sky-roofs path { transition: translate 0.55s var(--ease) calc(var(--i, 0) * var(--step)); }
+  .sky.in:not(.done) .sky-glow { transition: opacity 0.5s var(--ease) calc(var(--end) - 150ms); }
   .sky.in:not(.done) .sky-typical { clip-path: inset(-24px 0 -4px 0); transition: clip-path 0.5s var(--ease) calc(var(--end) - 250ms); }
   .sky.in:not(.done) .sky-peak { transition: opacity 0.2s var(--end), scale 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) var(--end); }
   .sky.in:not(.done) .sky-spots button span { transition: opacity 0.3s var(--ease), translate 0.3s var(--ease); transition-delay: calc(150ms + var(--i, 0) * var(--step)); }
