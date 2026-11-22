@@ -47,7 +47,7 @@ const blocks: { spot: string; i: number; lit: boolean; bs: Building[] }[] = [];
 for (const b of buildings) {
   const last = blocks.at(-1);
   if (last && last.spot === spotOf(b) && last.lit === b.lit) last.bs.push(b);
-  else blocks.push({ spot: spotOf(b), i: single ? 0 : si.get(b.e.season)!, lit: b.lit, bs: [b] });
+  else blocks.push({ spot: spotOf(b), i: single ? buildings.indexOf(b) : si.get(b.e.season)!, lit: b.lit, bs: [b] });
 }
 
 // The peak: the tallest building of the best season (or of the show, for a single season).
@@ -102,7 +102,7 @@ const tiles = [
 const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
 ---
 
-<section class="sky" aria-labelledby={`${id}-q`}>
+<section class="sky" style={`--step:${Math.min(50, 450 / spots.length).toFixed(0)}ms;--n:${spots.length}`} aria-labelledby={`${id}-q`}>
   <p class="sky-q eyebrow" id={`${id}-q`}>Is it worth getting through?</p>
   <p class="sky-verdict" set:html={lit} />
 
@@ -122,8 +122,8 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
           <div class:list={["sky-block", !k.lit && "dim"]} data-spot={k.spot} style={`--mask:${maskOf(rects(k.bs))};--i:${k.i}`}></div>
         ))}
         <svg class="sky-roofs" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-          {buildings.map((b) => (
-            <path data-spot={spotOf(b)} style={`--i:${single ? 0 : si.get(b.e.season)}`} class:list={[!b.lit && "dim", (single ? b === peak : b.best) && "best"]}
+          {buildings.map((b, i) => (
+            <path data-spot={spotOf(b)} style={`--i:${single ? i : si.get(b.e.season)}`} class:list={[!b.lit && "dim", (single ? b === peak : b.best) && "best"]}
               d={`M${b.x0.toFixed(1)} ${b.y.toFixed(1)}H${b.x1.toFixed(1)}`} vector-effect="non-scaling-stroke" />
           ))}
         </svg>
@@ -131,9 +131,9 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
       </div>
 
       <div class="sky-spots" role="group" aria-label={single ? "Episodes" : "Seasons"}>
-        {spots.map((q) => (
+        {spots.map((q, i) => (
           <button type="button" data-spot={q.key} data-say={`${q.head}${q.role ? ` · ${q.role}` : ""}`} data-tail={q.tail}
-            style={`left:${pct(q.l, W)};width:${pct(q.r - q.l, W)}`} aria-pressed="false"
+            style={`left:${pct(q.l, W)};width:${pct(q.r - q.l, W)};--i:${i}`} aria-pressed="false"
             aria-label={`${q.head}. ${q.role} ${q.tail}.`}>
             <span class:list={[q.best && "best"]}>{(q.r - q.l) / W >= 0.035 ? q.label : ""}</span>
           </button>
@@ -182,7 +182,7 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
       if (!seen.some((s) => s.isIntersecting)) return;
       io.disconnect();
       sky.classList.add("in");
-      setTimeout(() => sky.classList.add("done"), 1200);
+      setTimeout(() => sky.classList.add("done"), 1900);
     }, { threshold: 0.35 }).observe(sky.querySelector(".sky-stage")!);
   }
 </script>
@@ -223,21 +223,10 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
   }
   .sky-block.dim { filter: grayscale(1) brightness(0.42) contrast(0.9); }
 
-  /* PROTOTYPE picture fits (?fit=): only how the picture sits in the buildings, never the buildings themselves.
-     fill: covers the stage. whole: the whole picture, sharp, with a soft copy of itself filling the sides.
-     ghost: the full picture faint in the sky too. both: whole + ghost. */
-  .sky-ghost { display: none; position: absolute; inset: 0; background: var(--art, none) var(--art-at, center) / cover; }
-  :is(.sky-block, .sky-ghost)::before, :is(.sky-block, .sky-ghost)::after { content: ""; position: absolute; inset: 0; display: none; }
-  .sky-stage:is([data-fit="ghost"], [data-fit="both"]) .sky-ghost {
-    display: block; filter: brightness(0.3) saturate(0.7);
+  /* The full picture, faint in the sky: the buildings are where it's lit. */
+  .sky-ghost {
+    position: absolute; inset: 0; background: var(--art, none) var(--art-at, center) / cover; filter: brightness(0.3) saturate(0.7);
     -webkit-mask: linear-gradient(transparent, #000 45%); mask: linear-gradient(transparent, #000 45%);
-  }
-  .sky-stage:is([data-fit="whole"], [data-fit="both"]) :is(.sky-block, .sky-ghost) { background: none; }
-  .sky-stage:is([data-fit="whole"], [data-fit="both"]) :is(.sky-block, .sky-ghost)::before {
-    display: block; background: var(--art, none) center / cover; filter: blur(18px) brightness(0.5) saturate(1.1); scale: 1.08;
-  }
-  .sky-stage:is([data-fit="whole"], [data-fit="both"]) :is(.sky-block, .sky-ghost)::after {
-    display: block; background: linear-gradient(rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.03) 60%), var(--art, none) center / contain no-repeat;
   }
   .sky-glow path { fill: var(--accent); opacity: 0.38; }
   .sky-roofs path { stroke: rgb(255 255 255 / 0.75); stroke-width: 1.5px; fill: none; }
@@ -268,12 +257,29 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
   .sky-say { min-height: 1.5em; margin: var(--space-3) 0 var(--space-6); font: 700 clamp(17px, 3.4vw, 22px) / 1.3 var(--font-display); color: var(--text); }
   .sky-say span { font: 500 var(--text-sm) var(--font-body); color: var(--muted); }
 
-  /* The city rises out of the water, one season after another. */
+  /* Arriving, once: the picture surfaces, the city rises out of it season by season, then the marks land on it.
+     --end is when the last season is up. */
+  .sky { --end: calc(150ms + var(--n) * var(--step) + 450ms); }
+  .sky:not(.in) .sky-ghost { opacity: 0; scale: 1.05; }
+  .sky:not(.in) .sky-back { opacity: 0; }
   .sky:not(.in) :is(.sky-block, .sky-glow) { translate: 0 100%; }
   .sky:not(.in) .sky-roofs path { translate: 0 300px; }
-  .sky:not(.in) :is(.sky-peak, .sky-typical) { opacity: 0; }
-  .sky.in:not(.done) :is(.sky-block, .sky-roofs path, .sky-glow) { transition: translate 0.55s var(--ease) calc(var(--i, 0) * 45ms); }
-  .sky.in:not(.done) :is(.sky-peak, .sky-typical) { transition: opacity 0.3s 0.5s; }
+  .sky:not(.in) .sky-glow { opacity: 0; }
+  .sky:not(.in) .sky-typical { clip-path: inset(-24px 100% -4px 0); }
+  .sky:not(.in) .sky-peak { opacity: 0; scale: 0.3; }
+  .sky:not(.in) :is(.sky-spots button span, .sky-say, .sky-tiles > div) { opacity: 0; translate: 0 8px; }
+  .sky.in:not(.done) .sky-ghost { transition: opacity 0.6s var(--ease), scale 0.6s var(--ease); }
+  .sky.in:not(.done) .sky-back { transition: opacity 0.6s var(--ease); }
+  .sky.in:not(.done) :is(.sky-block, .sky-roofs path) { transition: translate 0.55s var(--ease) calc(150ms + var(--i, 0) * var(--step)); }
+  .sky.in:not(.done) .sky-glow { transition: translate 0.55s var(--ease) 150ms, opacity 0.5s var(--ease) calc(var(--end) - 150ms); }
+  .sky.in:not(.done) .sky-typical { clip-path: inset(-24px 0 -4px 0); transition: clip-path 0.5s var(--ease) calc(var(--end) - 250ms); }
+  .sky.in:not(.done) .sky-peak { transition: opacity 0.2s var(--end), scale 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) var(--end); }
+  .sky.in:not(.done) .sky-spots button span { transition: opacity 0.3s var(--ease), translate 0.3s var(--ease); transition-delay: calc(300ms + var(--i, 0) * var(--step)); }
+  .sky.in:not(.done) .sky-say { transition: opacity 0.35s var(--ease) var(--end), translate 0.35s var(--ease) var(--end); }
+  .sky.in:not(.done) .sky-tiles > div { transition: opacity 0.35s var(--ease), translate 0.35s var(--ease); }
+  .sky.in:not(.done) .sky-tiles > div:nth-child(1) { transition-delay: calc(var(--end) + 60ms); }
+  .sky.in:not(.done) .sky-tiles > div:nth-child(2) { transition-delay: calc(var(--end) + 120ms); }
+  .sky.in:not(.done) .sky-tiles > div:nth-child(3) { transition-delay: calc(var(--end) + 180ms); }
 
   .sky-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); grid-auto-flow: column; gap: var(--space-2); margin: 0; }
   @media (min-width: 720px) { .sky-tiles { gap: var(--space-3); } }
