@@ -111,7 +111,7 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
       <div class="sky-city" aria-hidden="true">
         <div class="sky-ghost"></div>
         {arc.best && !single && (
-          <svg class="sky-glow" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+          <svg class="sky-glow" data-spot={peak && spotOf(peak)} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
             <defs><filter id={`${id}-blur`} x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="10" /></filter></defs>
             <path d={rects(buildings.filter((b) => b.best))} filter={`url(#${id}-blur)`} />
           </svg>
@@ -125,7 +125,7 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
               d={`M${b.x0.toFixed(1)} ${b.y.toFixed(1)}H${b.x1.toFixed(1)}`} vector-effect="non-scaling-stroke" />
           ))}
         </svg>
-        {peak && <span class="sky-peak" style={`left:${pct((peak.x0 + peak.x1) / 2, W)};top:${pct(peak.y, H)}`}>★</span>}
+        {peak && <span class="sky-peak" data-spot={spotOf(peak)} style={`left:${pct((peak.x0 + peak.x1) / 2, W)};top:${pct(peak.y, H)}`}>★</span>}
       </div>
 
       <div class="sky-spots" role="group" aria-label={single ? "Episodes" : "Seasons"}>
@@ -239,11 +239,11 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
   .sky-peak { position: absolute; translate: -50% -125%; font-size: 18px; line-height: 1; color: var(--accent); text-shadow: 0 0 14px rgb(255 211 107 / 0.9); pointer-events: none; z-index: 1; }
 
   /* Lifting: the picked season or episode rises a little and the rest of the city steps back. */
-  .sky-block, .sky-roofs path { transition: translate 0.28s var(--ease), opacity 0.28s var(--ease); }
-  .sky-block.up { translate: 0 -5%; }
+  .sky-block, .sky-roofs path, .sky-glow, .sky-peak { transition: translate 0.28s var(--ease), opacity 0.28s var(--ease); }
+  .sky-block.up, .sky-glow.up { translate: 0 -5%; }
   .sky-roofs path.up { translate: 0 -15px; } /* 5% of the 300-unit sky */
-  .sky.lifting :is(.sky-block, .sky-roofs path):not(.up) { opacity: 0.4; }
-  .sky.lifting .sky-glow { opacity: 0.4; }
+  .sky-peak.up { translate: -50% calc(-125% - var(--ground) * 0.05); } /* the star rides its season up */
+  .sky.lifting :is(.sky-block, .sky-roofs path, .sky-glow, .sky-peak):not(.up) { opacity: 0.4; }
 
   .sky-spots { position: absolute; inset: 0; }
   .sky-spots button {
