@@ -66,7 +66,7 @@ export function computeArc(raw: RawEpisode[], ending: Ending, anthology = false,
     return { ...base, enough, level: "weak", best: null, slowStart: null, fadeAfter: null, finale: null, shape: "", verdict: "Not enough episode ratings yet" };
   }
 
-  const best = judged.length >= 2 ? judged.reduce((a, b) => (b.mean! > a.mean! + 0.05 ? b : a)) : null;
+  const best = judged.length >= 2 ? judged.reduce((a, b) => (b.mean! > a.mean! ? b : a)) : null;
   const m = (ss: Season[]) => avg(ss.map((s) => s.mean!));
 
   // A slow start: a first season below the show's own level that a later one rises well clear of, or (for a short run)
