@@ -14,6 +14,7 @@ const SAMPLES: [number, string][] = [
   [123, "holds up"], [138, "slow start"], [5, "anthology"], [30770, "miniseries"], [44933, "still running"], [47014, "no ratings"],
 ];
 const ANTHOLOGY = new Set([5]);
+const LOOKS = ["now", "panes", "frost", "glow"]; // PROTOTYPE: ways to keep the bars readable on a dark poster
 
 // The local TVmaze cache when there is one; a Cloudflare build fetches the few shows it needs instead.
 // TVmaze answers 429 when called too fast: wait and try again, and leave the show out rather than fail the build.
@@ -47,6 +48,9 @@ for (const [id, why] of SAMPLES) {
 <Base title="Payoff prototype" noindex>
   <main class="wrap pf">
     <p class="eyebrow">Prototype · epic #42 · the skyline</p>
+    <nav class="pf-looks" aria-label="Look">
+      {LOOKS.map((l) => <a class="pill" href={`?look=${l}`} data-look={l}>{l}</a>)}
+    </nav>
     <nav class="pf-pick" aria-label="Sample shows">
       {shows.map(({ show, why }) => <a class="pill" href={`?s=${show.slug}`} data-s={show.slug} title={why}>{show.name}</a>)}
     </nav>
@@ -87,15 +91,24 @@ for (const [id, why] of SAMPLES) {
 <script>
   const q = new URLSearchParams(location.search);
   let s = q.get("s") ?? "parks-and-recreation";
+  const looks = ["now", "panes", "frost", "glow"];
+  let look = looks.includes(q.get("look") ?? "") ? q.get("look")! : "panes";
   const apply = () => {
     for (const el of document.querySelectorAll<HTMLElement>(".pf-show")) el.hidden = el.dataset.s !== s;
     for (const a of document.querySelectorAll<HTMLAnchorElement>(".pf-pick a")) {
       a.classList.toggle("is-on", a.dataset.s === s);
       if (a.dataset.s === s) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
     }
-    history.replaceState(null, "", `?s=${s}`);
+    document.querySelector<HTMLElement>(".pf")!.dataset.look = look;
+    for (const a of document.querySelectorAll<HTMLAnchorElement>(".pf-looks a")) {
+      a.classList.toggle("is-on", a.dataset.look === look);
+      if (a.dataset.look === look) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+    }
+    history.replaceState(null, "", `?s=${s}&look=${look}`);
   };
   document.addEventListener("click", (e) => {
+    const l = (e.target as Element).closest<HTMLAnchorElement>(".pf-looks a");
+    if (l) { e.preventDefault(); look = l.dataset.look!; apply(); return; }
     const a = (e.target as Element).closest<HTMLAnchorElement>(".pf-pick a");
     if (!a) return;
     e.preventDefault();
@@ -108,6 +121,8 @@ for (const [id, why] of SAMPLES) {
 <style is:global>
   .pf { padding-top: var(--space-6); padding-bottom: 80px; }
   .pf h1 { font-size: var(--text-lg); margin: 0; }
+  .pf-looks { display: flex; gap: 6px; margin-top: var(--space-3); }
+  .pf-looks a { min-height: 32px; font-size: var(--text-sm); text-transform: capitalize; }
   .pf-pick { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-3) 0 var(--space-8); }
   .pf-pick a { min-height: 32px; font-size: var(--text-sm); }
   .pf-show { max-width: 920px; }
