@@ -33,6 +33,22 @@ async function episodesOf(id: number) {
   return raw?._embedded ? { episodes: raw._embedded.episodes, averageRuntime: raw.averageRuntime as number | null } : null;
 }
 
+// The show's landscape backdrop, for a city wider than it is tall. Leave it out rather than fail the build.
+async function backdropOf(id: number): Promise<string | null> {
+  for (let tries = 0; tries < 5; tries++) {
+    try {
+      const res = await fetch(`https://api.tvmaze.com/shows/${id}/images`);
+      if (res.ok) {
+        const all = (await res.json()) as { type: string; main: boolean; resolutions: { original: { url: string } } }[];
+        const bs = all.filter((i) => i.type === "background");
+        return (bs.find((i) => i.main) ?? bs[0])?.resolutions.original.url ?? null;
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 2000 * (tries + 1)));
+  }
+  return null;
+}
+
 const byId = new Map(loadCatalogue().map((s) => [s.id, s]));
 const shows = [];
 for (const [id, why] of SAMPLES) {
@@ -40,7 +56,7 @@ for (const [id, why] of SAMPLES) {
   const got = show && (await episodesOf(id));
   if (!show || !got) continue;
   const { episodes, averageRuntime } = got;
-  shows.push({ show, why, arc: computeArc(episodes, show.status, ANTHOLOGY.has(id), averageRuntime) as Arc });
+  shows.push({ show, why, backdrop: await backdropOf(id), arc: computeArc(episodes, show.status, ANTHOLOGY.has(id), averageRuntime) as Arc });
 }
 ---
 
@@ -51,7 +67,7 @@ for (const [id, why] of SAMPLES) {
       {shows.map(({ show, why }) => <a class="pill" href={`?s=${show.slug}`} data-s={show.slug} title={why}>{show.name}</a>)}
     </nav>
 
-    {shows.map(({ show, why, arc }) => (
+    {shows.map(({ show, why, arc, backdrop }) => (
       <section class="pf-show" data-s={show.slug} hidden>
         <header class="pf-head">
           {show.poster && <img class="poster" src={show.poster} alt="" width="56" height="84" />}
@@ -63,7 +79,7 @@ for (const [id, why] of SAMPLES) {
 
         {arc.enough ? (
           <>
-            <Skyline {arc} id={`sky-${show.slug}`} poster={show.poster} anthology={ANTHOLOGY.has(show.id)} />
+            <Skyline {arc} id={`sky-${show.slug}`} poster={show.poster} {backdrop} anthology={ANTHOLOGY.has(show.id)} />
             <details class="pf-table">
               <summary>The numbers</summary>
               <table>

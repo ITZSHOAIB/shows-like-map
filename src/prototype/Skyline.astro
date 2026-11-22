@@ -1,14 +1,24 @@
 ---
-// PROTOTYPE (payoff-prototype): the skyline. The show's own poster, cut into a city: every episode a building as tall
+// PROTOTYPE (payoff-prototype): the skyline. The show's own art, cut into a city: every episode a building as tall
 // as its rating, every season a block, a street between. Grey where it's warming up or past its best; the best season
-// lit amber. Tap a season to lift it and hear what it is.
-import { CEIL, FLOOR, endingWords, hoursLabel, levelOf, round, type Arc, type Season } from "./arc";
-const { arc, id, poster, anthology = false } = Astro.props as { arc: Arc; id: string; poster: string | null; anthology?: boolean };
+// lit amber. Tap a season (or an episode, for a single season) to lift it and hear what it is.
+import { CEIL, FLOOR, endingWords, hoursLabel, levelOf, round, type Arc } from "./arc";
+const { arc, id, poster, backdrop, anthology = false } = Astro.props as {
+  arc: Arc; id: string; poster: string | null; backdrop: string | null; anthology?: boolean;
+};
 
 const W = 1000, H = 300, STREET = 7;
-const art = poster?.replace("/medium_portrait/", "/original_untouched/") ?? null;
+// A building is as wide as its hours, measured against the sky's height: a short show stands as a small town in the
+// middle, a long one fills the width. A town narrower than it is tall wears the poster; a wider one the backdrop.
+const TOWN = 0.2; // town width, in sky heights, per hour
+const narrow = arc.hours * TOWN < 1.2;
+const pick = narrow ? poster : backdrop ?? poster;
+const art = pick?.replace("/medium_portrait/", "/original_untouched/") ?? null;
+const artAt = pick === backdrop ? "center 35%" : "center 22%";
+
 // The shared window: a 6 is a stump, a 9.5 nearly fills the sky (headroom left for the lift and the star).
-const top = (v: number) => H - H * (0.05 + 0.83 * ((Math.min(CEIL, Math.max(FLOOR, v)) - FLOOR) / (CEIL - FLOOR)));
+const frac = (v: number) => 0.05 + 0.83 * ((Math.min(CEIL, Math.max(FLOOR, v)) - FLOOR) / (CEIL - FLOOR));
+const top = (v: number) => H - H * frac(v);
 const scale = (W - STREET * (arc.seasons.length - 1)) / arc.hours;
 const si = new Map(arc.seasons.map((s, i) => [s.n, i]));
 const x = (h: number, season: number) => h * scale + si.get(season)! * STREET;
@@ -19,7 +29,8 @@ const from = arc.slowStart?.hours ?? 0, to = arc.fadeAfter?.hours ?? arc.hours;
 const buildings = arc.episodes.map((e) => {
   const s = arc.seasons[si.get(e.season)!];
   const v = e.rating ?? s.mean ?? arc.mean;
-  const x0 = x(e.start, e.season), x1 = x(e.end, e.season), gap = Math.min(1.4, (x1 - x0) * 0.22);
+  // Gaps a fraction of the building, so a wide one still reads as its own tower.
+  const x0 = x(e.start, e.season), x1 = x(e.end, e.season), w = x1 - x0, gap = Math.min(w * 0.22, Math.max(1.4, w * 0.05));
   return { e, x0: x0 + gap / 2, x1: x1 - gap / 2, y: top(v), lit: e.start >= from - 0.01 && e.end <= to + 0.01, best: s === arc.best };
 });
 type Building = (typeof buildings)[number];
@@ -27,89 +38,106 @@ const rects = (bs: Building[]) => bs.map((b) => `M${b.x0.toFixed(1)} ${b.y.toFix
 const maskOf = (d: string) =>
   `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${d}"/></svg>`)}")`;
 
-// Blocks: runs of buildings in one season that are all lit or all grey, so a slow first few episodes can grey alone.
-const blocks: { season: number; lit: boolean; bs: Building[] }[] = [];
+// One season: the episodes are what you tap. Otherwise the seasons.
+const single = arc.seasons.length === 1;
+const spotOf = (b: Building) => (single ? `e${b.e.number}` : `s${b.e.season}`);
+
+// Blocks: runs of buildings in one spot that are all lit or all grey, so a slow first few episodes can grey alone.
+const blocks: { spot: string; i: number; lit: boolean; bs: Building[] }[] = [];
 for (const b of buildings) {
   const last = blocks.at(-1);
-  if (last && last.season === b.e.season && last.lit === b.lit) last.bs.push(b);
-  else blocks.push({ season: b.e.season, lit: b.lit, bs: [b] });
+  if (last && last.spot === spotOf(b) && last.lit === b.lit) last.bs.push(b);
+  else blocks.push({ spot: spotOf(b), i: single ? 0 : si.get(b.e.season)!, lit: b.lit, bs: [b] });
 }
 
-// The peak: the tallest building of the best season.
-const peak = arc.best ? buildings.filter((b) => b.best && b.e.rating !== null).reduce((a, b) => (b.y < a.y ? b : a)) : null;
+// The peak: the tallest building of the best season (or of the show, for a single season).
+const rated = buildings.filter((b) => b.e.rating !== null);
+const tallest = (bs: Building[]) => (bs.length ? bs.reduce((a, b) => (b.y < a.y ? b : a)) : null);
+const peak = single ? tallest(rated) : arc.best ? tallest(rated.filter((b) => b.best)) : null;
 const TYPICAL = 7.7; // the middle show in the catalogue
 
-// What each season is, in words: for the caption and for screen readers.
 const lastSeason = arc.seasons.at(-1)!;
-const role = (s: Season) => {
-  if (anthology) return s === arc.best ? "The best of them." : "";
-  if (arc.slowStart?.season && s.n < arc.slowStart.season) return "Still warming up.";
-  if (arc.slowStart?.season === s.n) return "Where it gets going.";
-  if (arc.slowStart?.episode && s === arc.seasons[0]) return `Gets going at episode ${arc.slowStart.episode}.`;
-  if (arc.fadeAfter && s.n > arc.fadeAfter.season) {
-    return s === lastSeason && arc.finale === "divides" ? "Past its best, and the ending divides viewers." : "Past its best: a fine place to have stopped.";
-  }
-  if (s === arc.best && arc.seasons.length > 1) return "Its best season.";
-  if (s === lastSeason && arc.ending === "ended") return `${endingWords(arc.ending, arc.finale).replace(/^./, (c) => c.toUpperCase())}.`;
-  return "";
-};
-const seasons = arc.seasons.map((s) => {
-  const l = x(s.start, s.n), r = x(s.end, s.n);
-  const head = s.mean === null ? `Season ${s.n} · too few ratings` : `Season ${s.n} · ${round(s.mean).toFixed(1)} · ${levelOf(s.mean)}`;
-  const tail = `${s.eps.length} episodes · ${hoursLabel(s.start)}–${hoursLabel(s.end)} in`;
-  return { s, left: pct(l, W), width: pct(r - l, W), wide: (r - l) / W >= 0.035, head, role: role(s), tail };
-});
+const ends = () => `${endingWords(arc.ending, arc.finale).replace(/^./, (c) => c.toUpperCase())}.`;
+type Spot = { key: string; l: number; r: number; label: string; best: boolean; head: string; role: string; tail: string };
+const spots: Spot[] = single
+  ? buildings.map((b, i): Spot => {
+      const e = b.e, last = i === buildings.length - 1;
+      const role = arc.slowStart?.episode && i + 1 < arc.slowStart.episode ? "Still warming up."
+        : arc.slowStart?.episode === i + 1 ? "Where it gets going."
+        : b === peak ? "Its best episode."
+        : last && arc.ending === "ended" ? ends() : "";
+      return {
+        key: `e${e.number}`, l: b.x0, r: b.x1, label: `E${e.number}`, best: b === peak, role,
+        head: e.rating === null ? `Episode ${e.number} · not rated` : `Episode ${e.number} · ${e.rating.toFixed(1)} · ${levelOf(e.rating)}`,
+        tail: `${hoursLabel(e.start)} in`,
+      };
+    })
+  : arc.seasons.map((s): Spot => {
+      const role = anthology ? (s === arc.best ? "The best of them." : "")
+        : arc.slowStart?.season && s.n < arc.slowStart.season ? "Still warming up."
+        : arc.slowStart?.season === s.n ? "Where it gets going."
+        : arc.slowStart?.episode && s === arc.seasons[0] ? `Gets going at episode ${arc.slowStart.episode}.`
+        : arc.fadeAfter && s.n > arc.fadeAfter.season
+          ? (s === lastSeason && arc.finale === "divides" ? "Past its best, and the ending divides viewers." : "Past its best: a fine place to have stopped.")
+        : s === arc.best ? "Its best season."
+        : s === lastSeason && arc.ending === "ended" ? ends() : "";
+      return {
+        key: `s${s.n}`, l: x(s.start, s.n), r: x(s.end, s.n), label: `S${s.n}`, best: s === arc.best, role,
+        head: s.mean === null ? `Season ${s.n} · too few ratings` : `Season ${s.n} · ${round(s.mean).toFixed(1)} · ${levelOf(s.mean)}`,
+        tail: `${s.eps.length} episodes · ${hoursLabel(s.start)}–${hoursLabel(s.end)} in`,
+      };
+    });
 
 const lit = arc.verdict.replace(/\b(great|good|decent|weak|fades|ends on a high|divides viewers|best: season \d+)\b/gi, "<em>$1</em>");
 const tiles = [
   arc.slowStart
     ? { k: "Gets good", v: hoursLabel(arc.slowStart.hours), s: arc.slowStart.season ? `in · season ${arc.slowStart.season}` : `in · episode ${arc.slowStart.episode}` }
     : { k: "Gets good", v: "At once", s: "no warming up" },
-  arc.best && arc.seasons.length > 1 ? { k: "Peak", v: `Season ${arc.best.n}`, s: arc.best.start < 0.5 ? `the first ${hoursLabel(arc.best.end)}` : `${hoursLabel(arc.best.start)} to ${hoursLabel(arc.best.end)} in` } : null,
+  !single && arc.best ? { k: "Peak", v: `Season ${arc.best.n}`, s: arc.best.start < 0.5 ? `the first ${hoursLabel(arc.best.end)}` : `${hoursLabel(arc.best.start)} to ${hoursLabel(arc.best.end)} in` }
+    : single && peak ? { k: "Peak", v: `Episode ${peak.e.number}`, s: peak.e.start < 0.5 ? "the very first" : `${hoursLabel(peak.e.start)} in` } : null,
   arc.fadeAfter
     ? { k: "Stop at", v: hoursLabel(arc.fadeAfter.hours), s: `after season ${arc.fadeAfter.season}, if you like` }
     : { k: "All of it", v: hoursLabel(arc.hours), s: endingWords(arc.ending, arc.finale) },
 ].filter(Boolean) as { k: string; v: string; s: string }[];
-const hint = arc.seasons.length > 1 ? "Tap a season to see what it is." : `${arc.episodes.length} episodes, ${hoursLabel(arc.hours)}.`;
+const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
 ---
 
-<section class="sky" style={art ? `--art:url("${art}")` : undefined} aria-labelledby={`${id}-q`}>
+<section class="sky" aria-labelledby={`${id}-q`}>
   <p class="sky-q eyebrow" id={`${id}-q`}>Is it worth getting through?</p>
   <p class="sky-verdict" set:html={lit} />
 
-  <div class="sky-stage" style={peak ? `--peak:${pct((peak.x0 + peak.x1) / 2, W)}` : undefined}>
+  <div class="sky-stage" style={`--town:${(arc.hours * TOWN).toFixed(2)};${art ? `--art:url("${art}");--art-at:${artAt}` : ""}`}>
     <div class="sky-back" aria-hidden="true"></div>
-    <div class="sky-city" aria-hidden="true">
-      {arc.best && (
-        <svg class="sky-glow" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-          <defs><filter id={`${id}-blur`} x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="10" /></filter></defs>
-          <path d={rects(buildings.filter((b) => b.best))} filter={`url(#${id}-blur)`} />
-        </svg>
-      )}
-      {blocks.map((k) => (
-        <div class:list={["sky-block", !k.lit && "dim"]} data-season={k.season} style={`--mask:${maskOf(rects(k.bs))};--i:${si.get(k.season)}`}></div>
-      ))}
-      <svg class="sky-roofs" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-        {arc.seasons.map((s) => (
-          <g data-season={s.n} style={`--i:${si.get(s.n)}`} class:list={[s === arc.best && "best"]}>
-            {buildings.filter((b) => b.e.season === s.n).map((b) => (
-              <path class:list={[!b.lit && "dim"]} d={`M${b.x0.toFixed(1)} ${b.y.toFixed(1)}H${b.x1.toFixed(1)}`} vector-effect="non-scaling-stroke" />
-            ))}
-          </g>
+    <span class="sky-typical" style={`top:calc(var(--ground) * ${(1 - frac(TYPICAL)).toFixed(3)})`} aria-hidden="true"><b>typical show</b></span>
+    <div class="sky-town" style={peak ? `--peak:${pct((peak.x0 + peak.x1) / 2, W)}` : undefined}>
+      <div class="sky-city" aria-hidden="true">
+        {arc.best && !single && (
+          <svg class="sky-glow" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+            <defs><filter id={`${id}-blur`} x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="10" /></filter></defs>
+            <path d={rects(buildings.filter((b) => b.best))} filter={`url(#${id}-blur)`} />
+          </svg>
+        )}
+        {blocks.map((k) => (
+          <div class:list={["sky-block", !k.lit && "dim"]} data-spot={k.spot} style={`--mask:${maskOf(rects(k.bs))};--i:${k.i}`}></div>
         ))}
-      </svg>
-      <span class="sky-typical" style={`top:${pct(top(TYPICAL), H)}`}><b>typical show</b></span>
-      {peak && <span class="sky-peak" style={`left:${pct((peak.x0 + peak.x1) / 2, W)};top:${pct(peak.y, H)}`}>★</span>}
-    </div>
+        <svg class="sky-roofs" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+          {buildings.map((b) => (
+            <path data-spot={spotOf(b)} style={`--i:${single ? 0 : si.get(b.e.season)}`} class:list={[!b.lit && "dim", (single ? b === peak : b.best) && "best"]}
+              d={`M${b.x0.toFixed(1)} ${b.y.toFixed(1)}H${b.x1.toFixed(1)}`} vector-effect="non-scaling-stroke" />
+          ))}
+        </svg>
+        {peak && <span class="sky-peak" style={`left:${pct((peak.x0 + peak.x1) / 2, W)};top:${pct(peak.y, H)}`}>★</span>}
+      </div>
 
-    <div class="sky-seasons" role="group" aria-label="Seasons">
-      {seasons.map((q) => (
-        <button type="button" data-season={q.s.n} data-say={`${q.head}${q.role ? ` · ${q.role}` : ""}`} data-tail={q.tail}
-          style={`left:${q.left};width:${q.width}`} aria-pressed="false"
-          aria-label={`${q.head}. ${q.role} ${q.tail}.`}>
-          <span class:list={[q.s === arc.best && "best"]}>{q.wide ? `S${q.s.n}` : ""}</span>
-        </button>
-      ))}
+      <div class="sky-spots" role="group" aria-label={single ? "Episodes" : "Seasons"}>
+        {spots.map((q) => (
+          <button type="button" data-spot={q.key} data-say={`${q.head}${q.role ? ` · ${q.role}` : ""}`} data-tail={q.tail}
+            style={`left:${pct(q.l, W)};width:${pct(q.r - q.l, W)}`} aria-pressed="false"
+            aria-label={`${q.head}. ${q.role} ${q.tail}.`}>
+            <span class:list={[q.best && "best"]}>{(q.r - q.l) / W >= 0.035 ? q.label : ""}</span>
+          </button>
+        ))}
+      </div>
     </div>
   </div>
 
@@ -126,23 +154,23 @@ const hint = arc.seasons.length > 1 ? "Tap a season to see what it is." : `${arc
     const say = sky.querySelector<HTMLElement>(".sky-say")!;
     const lead = say.querySelector("b")!, rest = say.querySelector("span")!;
     const hint = lead.textContent!;
-    const buttons = [...sky.querySelectorAll<HTMLButtonElement>(".sky-seasons button")];
+    const buttons = [...sky.querySelectorAll<HTMLButtonElement>(".sky-spots button")];
     let picked: string | null = null;
     const show = (n: string | null) => {
       sky.classList.toggle("lifting", n !== null);
-      for (const el of sky.querySelectorAll<Element>(".sky-city [data-season]")) el.classList.toggle("up", el.getAttribute("data-season") === n);
-      const b = buttons.find((b) => b.dataset.season === n);
+      for (const el of sky.querySelectorAll<Element>(".sky-city [data-spot]")) el.classList.toggle("up", el.getAttribute("data-spot") === n);
+      const b = buttons.find((b) => b.dataset.spot === n);
       lead.textContent = b ? b.dataset.say! : hint;
       rest.textContent = b ? ` · ${b.dataset.tail}` : "";
     };
     for (const b of buttons) {
-      b.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") show(b.dataset.season!); });
+      b.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") show(b.dataset.spot!); });
       b.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") show(picked); });
-      b.addEventListener("focus", () => show(b.dataset.season!));
+      b.addEventListener("focus", () => show(b.dataset.spot!));
       b.addEventListener("blur", () => show(picked));
       b.addEventListener("click", () => {
-        picked = picked === b.dataset.season ? null : b.dataset.season!;
-        for (const o of buttons) o.setAttribute("aria-pressed", String(o.dataset.season === picked));
+        picked = picked === b.dataset.spot ? null : b.dataset.spot!;
+        for (const o of buttons) o.setAttribute("aria-pressed", String(o.dataset.spot === picked));
         show(picked);
       });
     }
@@ -168,22 +196,27 @@ const hint = arc.seasons.length > 1 ? "Tap a season to see what it is." : `${arc
   }
   .sky-verdict em { font-style: normal; color: var(--accent); }
 
-  /* The city stands on a waterline; below it, its reflection and the season names. */
+  /* The city stands on a waterline; below it, its reflection and the names. A short show is a small town mid-stage. */
   .sky-stage { --ground: clamp(170px, 30vw, 270px); position: relative; height: calc(var(--ground) + 58px); }
+  .sky-stage::after { content: ""; position: absolute; inset: var(--ground) 0 auto; height: 1px; background: rgb(255 255 255 / 0.14); }
   .sky-back {
     position: absolute; inset: -12% -6% 10%; z-index: -1; pointer-events: none;
-    background: var(--art, none) center 30% / cover; filter: blur(48px) saturate(1.3); opacity: 0.22;
+    background: var(--art, none) var(--art-at, center) / cover; filter: blur(48px) saturate(1.3); opacity: 0.22;
     mask-image: radial-gradient(60% 70% at 50% 55%, #000 30%, transparent 80%);
   }
-  .sky-back::after { content: ""; position: absolute; inset: 0; background: radial-gradient(30% 50% at var(--peak, 50%) 45%, rgb(255 211 107 / 0.35), transparent 70%); }
+  .sky-town { position: absolute; top: 0; bottom: 0; left: 50%; translate: -50% 0; width: min(100%, calc(var(--ground) * var(--town))); }
+  /* A warm light behind the peak. */
+  .sky-town::before {
+    content: ""; position: absolute; z-index: -1; inset: -20% -30% 20%; pointer-events: none;
+    background: radial-gradient(closest-side, rgb(255 211 107 / 0.16), transparent) var(--peak, 50%) 40% / 60% 90% no-repeat;
+  }
   .sky-city {
     position: absolute; inset: 0 0 auto; height: var(--ground); overflow: hidden;
     -webkit-box-reflect: below 1px linear-gradient(transparent 76%, rgb(0 0 0 / 0.3));
   }
-  .sky-city::after { content: ""; position: absolute; inset: auto 0 0; height: 1px; background: rgb(255 255 255 / 0.18); }
   .sky-block, .sky-glow, .sky-roofs { position: absolute; inset: 0; width: 100%; height: 100%; }
   .sky-block {
-    background: linear-gradient(rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.03) 60%), var(--art, linear-gradient(#ffd36b, #8a5a2b)) center 30% / cover;
+    background: linear-gradient(rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.03) 60%), var(--art, linear-gradient(#ffd36b, #8a5a2b)) var(--art-at, center) / cover;
     -webkit-mask: var(--mask) 0 0 / 100% 100% no-repeat; mask: var(--mask) 0 0 / 100% 100% no-repeat;
     filter: saturate(1.15) brightness(1.05);
   }
@@ -191,37 +224,37 @@ const hint = arc.seasons.length > 1 ? "Tap a season to see what it is." : `${arc
   .sky-glow path { fill: var(--accent); opacity: 0.38; }
   .sky-roofs path { stroke: rgb(255 255 255 / 0.75); stroke-width: 1.5px; fill: none; }
   .sky-roofs path.dim { stroke: rgb(255 255 255 / 0.22); }
-  .sky-roofs .best path { stroke: var(--accent); stroke-width: 2.5px; }
+  .sky-roofs path.best { stroke: var(--accent); stroke-width: 2.5px; }
 
   .sky-typical { position: absolute; left: 0; right: 0; border-top: 1px dashed rgb(255 255 255 / 0.28); pointer-events: none; z-index: 1; }
   .sky-typical b { position: absolute; right: 0; bottom: 3px; font: 600 10px var(--font-body); letter-spacing: var(--eyebrow-tracking); text-transform: uppercase; color: rgb(238 240 246 / 0.7); padding: 1px 6px; border-radius: 6px; background: rgb(7 8 12 / 0.72); }
   .sky-peak { position: absolute; translate: -50% -125%; font-size: 18px; line-height: 1; color: var(--accent); text-shadow: 0 0 14px rgb(255 211 107 / 0.9); pointer-events: none; z-index: 1; }
 
-  /* Lifting a season: it rises a little and the rest of the city steps back. */
-  .sky-block, .sky-roofs g { transition: translate 0.28s var(--ease), opacity 0.28s var(--ease); }
+  /* Lifting: the picked season or episode rises a little and the rest of the city steps back. */
+  .sky-block, .sky-roofs path { transition: translate 0.28s var(--ease), opacity 0.28s var(--ease); }
   .sky-block.up { translate: 0 -5%; }
-  .sky-roofs g.up { translate: 0 -15px; } /* 5% of the 300-unit sky */
-  .sky.lifting :is(.sky-block, .sky-roofs g):not(.up) { opacity: 0.4; }
+  .sky-roofs path.up { translate: 0 -15px; } /* 5% of the 300-unit sky */
+  .sky.lifting :is(.sky-block, .sky-roofs path):not(.up) { opacity: 0.4; }
   .sky.lifting .sky-glow { opacity: 0.4; }
 
-  .sky-seasons { position: absolute; inset: 0; }
-  .sky-seasons button {
+  .sky-spots { position: absolute; inset: 0; }
+  .sky-spots button {
     position: absolute; top: 0; bottom: 0; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 6px;
     display: flex; align-items: flex-end; justify-content: center; color: var(--muted); font: 600 var(--text-xs) var(--font-body);
   }
-  .sky-seasons button span { padding-bottom: 14px; }
-  .sky-seasons button span.best { color: var(--accent); }
-  .sky-seasons button[aria-pressed="true"] span, .sky-seasons button:hover span { color: var(--text); }
-  .sky-seasons button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .sky-spots button span { padding-bottom: 14px; }
+  .sky-spots button span.best { color: var(--accent); }
+  .sky-spots button[aria-pressed="true"] span, .sky-spots button:hover span { color: var(--text); }
+  .sky-spots button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
   .sky-say { min-height: 1.5em; margin: var(--space-3) 0 var(--space-6); font: 700 clamp(17px, 3.4vw, 22px) / 1.3 var(--font-display); color: var(--text); }
   .sky-say span { font: 500 var(--text-sm) var(--font-body); color: var(--muted); }
 
   /* The city rises out of the water, one season after another. */
   .sky:not(.in) :is(.sky-block, .sky-glow) { translate: 0 100%; }
-  .sky:not(.in) .sky-roofs g { translate: 0 300px; }
+  .sky:not(.in) .sky-roofs path { translate: 0 300px; }
   .sky:not(.in) :is(.sky-peak, .sky-typical) { opacity: 0; }
-  .sky.in:not(.done) :is(.sky-block, .sky-roofs g, .sky-glow) { transition: translate 0.55s var(--ease) calc(var(--i, 0) * 45ms); }
+  .sky.in:not(.done) :is(.sky-block, .sky-roofs path, .sky-glow) { transition: translate 0.55s var(--ease) calc(var(--i, 0) * 45ms); }
   .sky.in:not(.done) :is(.sky-peak, .sky-typical) { transition: opacity 0.3s 0.5s; }
 
   .sky-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); grid-auto-flow: column; gap: var(--space-2); margin: 0; }
@@ -239,9 +272,9 @@ const hint = arc.seasons.length > 1 ? "Tap a season to see what it is." : `${arc
   @media (forced-colors: active) {
     .sky-block { forced-color-adjust: none; background: CanvasText; }
     .sky-block.dim { background: GrayText; filter: none; }
-    .sky-glow, .sky-back { display: none; }
+    .sky-glow, .sky-back, .sky-town::before { display: none; }
     .sky-roofs { forced-color-adjust: none; }
-    .sky-roofs path, .sky-roofs .best path { stroke: Highlight; }
+    .sky-roofs path, .sky-roofs path.best { stroke: Highlight; }
     .sky-typical { border-color: CanvasText; }
   }
 </style>
