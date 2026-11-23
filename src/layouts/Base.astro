@@ -3,6 +3,8 @@
 import "@fontsource-variable/bricolage-grotesque";
 import "../styles/global.css";
 import Icon from "../components/Icon.astro";
+import Peek from "../components/Peek.astro";
+import type { Peek as PeekData } from "../lib/peek";
 import { scriptJson, SITE_NAME } from "../lib/seo";
 
 interface Props {
@@ -13,8 +15,10 @@ interface Props {
   largeImage?: boolean; // the picture is 1200x630, for the big card; a poster is small, so it gets the compact one
   jsonLd?: unknown; // structured data for the page
   noindex?: boolean; // a page with nothing for search engines in it (the kept list)
+  peekData?: Record<string, PeekData>; // recommendation context is available on show pages; other cards load details on hold
+  peekFrom?: string;
 }
-const { title, description, path, image, largeImage, jsonLd, noindex } = Astro.props;
+const { title, description, path, image, largeImage, jsonLd, noindex, peekData, peekFrom } = Astro.props;
 const url = path ? new URL(path, Astro.site) : undefined;
 const picture = new URL(image ?? "/og.png", Astro.site).href;
 const large = largeImage || !image;
@@ -72,6 +76,7 @@ const large = largeImage || !image;
       </script>
     </header>
     <slot />
+    <Peek data={peekData} from={peekFrom} />
     <footer class="foot wrap muted">
       <slot name="credits" />
       {path !== "/about/" && <p><a href="/about/">About, licences and corrections</a></p>}

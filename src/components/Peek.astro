@@ -1,13 +1,13 @@
 ---
-// Hold-to-peek (#3, decision 0007): hold a match's poster and it grows into a card with its facts, why it's similar,
-// its plot and where it leads, so you can decide before you hop. Let go and it stays; Open hops with the usual morph.
+// Hold-to-peek (#3, decisions 0007 and 0015): hold an in-site show card and it grows into a card with its facts,
+// payoff, plot, and leads (plus why it is similar for recommendation cards). Let go and it stays; Open hops as usual.
 // Everything in it is also on the show's own page, so it's a shortcut, never the only way to something.
 // Drag it sideways to decide (decision 0012): right keeps the show, left closes the peek. Keep is a button too.
 import type { Peek } from "../lib/peek";
 import Icon from "./Icon.astro";
 
-interface Props { data: Record<string, Peek>; from: string }
-const { data, from } = Astro.props;
+interface Props { data?: Record<string, Peek>; from?: string }
+const { data = {}, from = "" } = Astro.props;
 ---
 
 <script type="application/json" id="peek-data" set:html={JSON.stringify(data).replace(/</g, "\\u003c")} />
@@ -22,6 +22,7 @@ const { data, from } = Astro.props;
   const dialog = document.getElementById("peek") as HTMLDialogElement;
   const data: Record<string, Peek> = JSON.parse(document.getElementById("peek-data")!.textContent!);
   const from = dialog.dataset.from!;
+  const pending = new Map<string, Promise<Peek>>();
   const HOLD_MS = 420; // under the ~500 ms after which phones open their own long-press menu
   const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
   const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -32,6 +33,19 @@ const { data, from } = Astro.props;
   if (hint && !peeked && matchMedia("(hover: none) and (pointer: coarse)").matches) hint.hidden = false;
   else hint = null;
   const slugOf = (card: Element) => card.getAttribute("href")!.split("/")[2];
+  const peekOf = (card: HTMLAnchorElement) => {
+    const slug = slugOf(card);
+    if (data[slug]) return Promise.resolve(data[slug]);
+    let load = pending.get(slug);
+    if (!load) {
+      load = fetch(`/peek/${encodeURIComponent(slug)}.json`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+        .then((peek: Peek) => (data[slug] = peek));
+      pending.set(slug, load);
+      load.catch(() => pending.delete(slug));
+    }
+    return load;
+  };
   const posterOf = (card: Element) => card.querySelector<HTMLElement>(".poster, .poster-ph")!;
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = "") => {
     const e = document.createElement(tag);
@@ -83,14 +97,22 @@ const { data, from } = Astro.props;
       );
       facts.children[s.facts[1]?.endsWith("to finish") ? 1 : 0].after(r);
     }
-    text.append(el("p", "eyebrow", s.via ? `Via ${s.via}` : `Like ${from}`), title, facts);
+    const context = s.via ? `Via ${s.via}` : s.why && from ? `Like ${from}` : "";
+    if (context) text.append(el("p", "eyebrow", context));
+    text.append(title, facts);
     head.append(posterEl(s.poster, s.name, "pk-poster"), text);
     const kept = readKept().includes(slugOf(card));
     // What a sideways drag does, said where it happens. Screen readers get the Keep button instead.
     const swipe = el("p", "pk-swipe");
     swipe.setAttribute("aria-hidden", "true");
     swipe.append(el("span", "l", "← Close"), el("span", "r", kept ? "Kept already" : "Keep →"));
-    const body: HTMLElement[] = [swipe, head, el("p", "pk-why", s.why)];
+    const body: HTMLElement[] = [swipe, head];
+    if (s.payoff) {
+      const payoff = el("div", "pk-payoff");
+      payoff.append(el("p", "eyebrow", "Worth getting through?"), el("p", "", s.payoff));
+      body.push(payoff);
+    }
+    if (s.why) body.push(el("p", "pk-why", s.why));
     if (s.summary) body.push(el("p", "pk-sum", s.summary));
     if (s.leads.length) {
       const heading = el("h3", "eyebrow pk-leads-label", "Leads to");
@@ -277,7 +299,7 @@ const { data, from } = Astro.props;
   addEventListener("pageshow", (e) => { if (e.persisted && dialog.open) { held = null; dialog.close(); } });
 
   // ---------- the hold ----------
-  let press: { card: HTMLAnchorElement; x: number; y: number; timer: number } | null = null;
+  let press: { card: HTMLAnchorElement; x: number; y: number; timer: number; preload: number } | null = null;
   let touch = false; // the last press was a finger or pen, not a mouse
   let holding = false; // the press that opened the peek is still down
   let releasedAt = -Infinity;
@@ -287,29 +309,48 @@ const { data, from } = Astro.props;
   const fresh = () => holding || performance.now() - releasedAt < 400;
 
   const endPress = () => {
-    if (press) { clearTimeout(press.timer); press.card.classList.remove("peek-pressing"); }
+    if (press) {
+      clearTimeout(press.timer);
+      clearTimeout(press.preload);
+      press.card.classList.remove("peek-pressing");
+    }
     press = null;
   };
   let holdFrom = 0; // where the finger that opened the peek went down: it can drag the peek without lifting
   // While a peek is held, the finger's moves drag it, so the page mustn't scroll under it. Only then: a touchmove listener
   // that can cancel makes every swipe wait on this script, which a fast fling on a row feels as lag.
   const pin = (e: TouchEvent) => e.preventDefault();
-  const open = (card: HTMLAnchorElement) => {
+  const open = async (card: HTMLAnchorElement) => {
     holdFrom = press?.x ?? 0;
     endPress();
     holding = true;
     document.addEventListener("touchmove", pin, { passive: false });
     navigator.vibrate?.(10);
-    show(card);
+    try {
+      await peekOf(card);
+      if (holding) show(card);
+    } catch {
+      holding = false;
+      document.removeEventListener("touchmove", pin);
+    }
   };
 
-  document.querySelector(".rows")?.addEventListener("pointerdown", (e) => {
+  const cardAt = (target: EventTarget | null) => {
+    const card = (target as Element | null)?.closest<HTMLAnchorElement>("a.card:not(.out), a.tile");
+    if (!card || !card.pathname.startsWith("/shows/")) return null;
+    return card;
+  };
+  document.addEventListener("pointerdown", (e) => {
     const p = e as PointerEvent;
     touch = p.pointerType !== "mouse";
-    const card = (p.target as Element).closest<HTMLAnchorElement>("a.card");
-    if (!card || p.button !== 0 || !data[slugOf(card)]) return;
+    const card = cardAt(p.target);
+    if (!card || p.button !== 0) return;
     card.classList.add("peek-pressing");
-    press = { card, x: p.clientX, y: p.clientY, timer: window.setTimeout(() => open(card), HOLD_MS) };
+    press = {
+      card, x: p.clientX, y: p.clientY,
+      preload: window.setTimeout(() => { void peekOf(card).catch(() => {}); }, 120),
+      timer: window.setTimeout(() => { void open(card); }, HOLD_MS),
+    };
   });
   // Moving means scrolling or dragging, not holding.
   addEventListener("pointermove", (e) => {
@@ -324,10 +365,12 @@ const { data, from } = Astro.props;
     if (!holding) return;
     holding = false;
     document.removeEventListener("touchmove", pin);
-    if (dialog.open) settle();
-    lifted = true;
-    releasedAt = performance.now();
-    setTimeout(() => (lifted = false), 400);
+    if (dialog.open) {
+      settle();
+      lifted = true;
+      releasedAt = performance.now();
+      setTimeout(() => (lifted = false), 400);
+    }
   };
   addEventListener("pointerdown", () => (lifted = false), { capture: true }); // a new press: its tap is meant
   addEventListener("pointerup", release);
@@ -336,8 +379,8 @@ const { data, from } = Astro.props;
   document.addEventListener("contextmenu", (e) => {
     if (fresh()) return e.preventDefault();
     // A long press that beat our timer peeks. A right-click with a mouse keeps the browser's menu ("Open in new tab").
-    const card = (e.target as Element).closest?.<HTMLAnchorElement>(".track a.card");
-    if (card && touch && data[slugOf(card)]) { e.preventDefault(); open(card); }
+    const card = cardAt(e.target);
+    if (card && touch) { e.preventDefault(); void open(card); }
   });
   // The tap the opening finger makes as it lifts goes nowhere.
   document.addEventListener("click", (e) => {
@@ -350,9 +393,11 @@ const { data, from } = Astro.props;
 </script>
 
 <style is:global>
+  .peek-hint { display: flex; align-items: center; gap: var(--space-1); margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--text-sm); }
+  .peek-hint[hidden] { display: none; }
   /* A held card: no phone callout or link preview, no text selection, no image drag; the poster sinks a little. */
-  .track a.card, .track a.card * { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
-  .track a.card.peek-pressing .poster { scale: 0.94; transition: scale 0.42s var(--ease); }
+  .track a.card, .track a.card *, .track a.tile, .track a.tile *, .tiles a.tile, .tiles a.tile *, .k-tiles a.tile, .k-tiles a.tile * { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+  .track a.card.peek-pressing .poster, .track a.tile.peek-pressing .poster, .tiles a.tile.peek-pressing .poster, .k-tiles a.tile.peek-pressing .poster { scale: 0.94; transition: scale 0.42s var(--ease); }
   /* Nothing in it selects: a long press on its text would start a selection and take the finger off the drag. */
   .peek, .peek * { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; -webkit-user-select: none; }
 
@@ -376,6 +421,9 @@ const { data, from } = Astro.props;
   .pk-head .eyebrow { margin: 0 0 var(--space-1); }
   .pk-facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-2) 0 0; padding: 0; }
   .pk-facts .pill { min-height: 24px; font-size: var(--text-xs); }
+  .pk-payoff { margin: var(--space-4) 0; padding: var(--space-2) var(--space-3); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: var(--radius-2); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .pk-payoff .eyebrow { margin: 0 0 2px; color: var(--accent); }
+  .pk-payoff p:last-child { margin: 0; font-size: var(--text-sm); font-weight: 600; }
   .pk-why { margin: var(--space-4) 0 var(--space-2); font-weight: 600; }
   .pk-sum { margin: 0; color: var(--muted); font-size: var(--text-sm); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .peek .pk-leads-label { margin: var(--space-6) 0 var(--space-2); }

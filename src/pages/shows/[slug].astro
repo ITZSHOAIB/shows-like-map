@@ -2,7 +2,6 @@
 // The show page, "Drill down" (decision 0005), first slice of #3: the hero and rows of matches, static, no JavaScript.
 import Icon from "../../components/Icon.astro";
 import MatchCard from "../../components/MatchCard.astro";
-import Peek from "../../components/Peek.astro";
 import Rail from "../../components/Rail.astro";
 import Skyline from "../../components/Skyline.astro";
 import Base from "../../layouts/Base.astro";
@@ -54,7 +53,7 @@ const path = `/shows/${show.slug}/`;
 const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/", Astro.site).href);
 ---
 
-<Base title={titleOf(label)} {description} {path} image={show.poster ?? undefined} {jsonLd}>
+<Base title={titleOf(label)} {description} {path} image={show.poster ?? undefined} {jsonLd} peekData={peek} peekFrom={show.name}>
   <main>
     <section class="hero">
       {/* The poster, blurred and faded, as the backdrop: no extra download, and every show has one (TVmaze backgrounds are 0.5 MB originals). */}
@@ -207,7 +206,7 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
                 {matches.map((m, i) => <li {...filterAttrs(m.show)} style={`--i: ${i}`}><MatchCard match={m.match} show={m.show} eager={i < 3} /></li>)}
               </ul>
             </Rail>
-            {linked && <p class="peek-hint wrap" id="peek-hint" hidden><Icon name="hand-tap" /> Hold a poster to peek</p>}
+            {linked && <p class="peek-hint wrap" id="peek-hint" hidden><Icon name="hand-tap" /> Hold any show card to peek</p>}
             {linked && <p class="sr-only" id="filters-status" aria-live="polite"></p>}
           </section>
           {/* Shown only while a filter is on and this show's own matches run thin: the shows its matches lead to, filtered the same way. */}
@@ -237,7 +236,6 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
   </main>
   {/* The next show starts loading when a finger touches its card (on desktop, a short hover), and Chrome hands the
       download in flight to the navigation, so a tap shows the next page in under 300 ms (decision 0005). */}
-  {linked && <Peek data={peek} from={show.name} />}
   <script type="speculationrules" is:inline set:html={JSON.stringify({
     prefetch: [{ source: "document", where: { selector_matches: "a.card:not(.out), .trail a" }, eagerness: "moderate" }],
   })} />
@@ -490,7 +488,5 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
   /* Snapping lines a card up where a mouse drag comes to rest. A finger flings freely, as native rows do: snapping swaps a fling's own
      momentum for a fixed snap animation, so a fast swipe stops somewhere it didn't aim. */
   @media (pointer: coarse) { .track { scroll-snap-type: none; } }
-  .peek-hint { display: flex; align-items: center; gap: var(--space-1); margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--text-sm); }
-  .peek-hint[hidden] { display: none; }
   .track:focus-visible { outline-offset: -2px; }
 </style>
