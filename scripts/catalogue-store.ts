@@ -11,6 +11,7 @@ import { download, REPO, upload } from "./hf.ts";
 const token = process.env.HF_TOKEN;
 if (!token) throw new Error("HF_TOKEN is not set: the catalogue lives in the Hugging Face dataset");
 
+const PREVIEW_CATALOGUE = "catalogue-preview-payoff-build.json";
 const cmd = process.argv[2];
 if (cmd === "push") {
   const after: Show[] = JSON.parse(readFileSync(CATALOGUE, "utf8"));
@@ -18,13 +19,23 @@ if (cmd === "push") {
   const summary = changes(before, after);
   for (const line of summary) console.log(line);
   upload(CATALOGUE, "catalogue.json", `Update catalogue: ${after.length} shows\n\n${summary.join("\n")}`);
+} else if (cmd === "push-preview") {
+  const after: Show[] = JSON.parse(readFileSync(CATALOGUE, "utf8"));
+  upload(CATALOGUE, PREVIEW_CATALOGUE, `Refresh payoff-build preview catalogue: ${after.length} shows`);
 } else if (cmd === "pull") {
-  const text = await download("catalogue.json", token);
-  if (text === null) throw new Error(`Hugging Face: ${REPO} has no catalogue.json yet: run the data workflow`);
+  const preview = process.env.CF_PAGES_BRANCH === "payoff-build";
+  let path = preview ? PREVIEW_CATALOGUE : "catalogue.json";
+  let text = await download(path, token);
+  if (text === null && preview) {
+    // Let an initial preview deploy succeed before the branch-specific catalogue has been uploaded.
+    path = "catalogue.json";
+    text = await download(path, token);
+  }
+  if (text === null) throw new Error(`Hugging Face: ${REPO} has no ${path}: run the data workflow`);
   mkdirSync("src/data/generated", { recursive: true });
   writeFileSync(CATALOGUE, text);
-  console.log(`pulled ${JSON.parse(text).length} shows from ${REPO}`);
+  console.log(`pulled ${JSON.parse(text).length} shows from ${REPO}/${path}`);
 } else {
-  console.error("usage: node scripts/catalogue-store.ts push|pull");
+  console.error("usage: node scripts/catalogue-store.ts push|push-preview|pull");
   process.exit(1);
 }
