@@ -92,3 +92,17 @@ test("slugs are readable and unique", () => {
     ["dark-2017", "dark-2005", "gullak"],
   );
 });
+
+test("the run times episodes as the hours to finish do, with their ratings", () => {
+  const rated = (season: number, runtime: number | null, average: number | null) => ({ ...ep(season, runtime), rating: { average } });
+  const s = toShow(
+    { id: 7, name: "Dark", status: "Ended", url: "u", averageRuntime: 50, _embedded: { episodes: [rated(1, 60, 8.1), rated(1, null, null), rated(2, 45, 9)] } },
+    undefined,
+    now,
+    true,
+  );
+  assert.deepEqual(s.run, [[1, 60, 8.1], [1, 50, null], [2, 45, 9]]);
+  assert.equal(s.run!.reduce((m, [, minutes]) => m + minutes, 0), s.minutes);
+  assert.equal(s.anthology, true);
+  assert.equal(toShow({ id: 8, name: "Maharani", status: "Ended", url: "u", _embedded: { episodes: [ep(1, null)] } }, undefined, now).run, null);
+});

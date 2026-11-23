@@ -4,11 +4,13 @@ import Icon from "../../components/Icon.astro";
 import MatchCard from "../../components/MatchCard.astro";
 import Peek from "../../components/Peek.astro";
 import Rail from "../../components/Rail.astro";
+import Skyline from "../../components/Skyline.astro";
 import Base from "../../layouts/Base.astro";
 import { hours, loadCatalogue, STATUS_LABEL, type Show, type Status } from "../../lib/catalogue";
 import { filterAttrs, HOUR_LIMITS } from "../../lib/filters";
 import { furtherOut, type Further } from "../../lib/further";
 import { loadMatches, type Match } from "../../lib/matches";
+import { arcOf } from "../../lib/payoff";
 import { peekOf, type Peek as PeekData } from "../../lib/peek";
 import { descriptionOf, labelOf, structuredData, titleOf } from "../../lib/seo";
 import { watchUrl } from "../../lib/watch";
@@ -44,6 +46,8 @@ const STATUS_ICON: Record<Status, string> = {
   upcoming: "calendar-dots",
 };
 const linked = matches.some((m) => m.show);
+// Is it worth getting through? Only from ratings that are there: too few, and the page says so instead of guessing.
+const arc = arcOf(show);
 const label = labelOf(show, repeated);
 const description = descriptionOf(label, matches.map((m) => m.match.name));
 const path = `/shows/${show.slug}/`;
@@ -222,6 +226,13 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
       ) : (
         <p class="wrap muted">No matches for this show yet.</p>
       )
+    }
+    {
+      arc && (arc.enough ? (
+        <div class="wrap payoff"><Skyline {arc} id="payoff" poster={show.poster} anthology={show.anthology} /></div>
+      ) : (
+        <p class="wrap muted small payoff-none">Not enough episode ratings yet to say how it plays out.</p>
+      ))
     }
   </main>
   {/* The next show starts loading when a finger touches its card (on desktop, a short hover), and Chrome hands the
@@ -421,6 +432,8 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
   .people dd { margin: 0; }
 
   .rows { display: grid; gap: var(--space-8); }
+  .payoff { margin-top: var(--space-8); }
+  .payoff-none { margin-top: var(--space-8); }
   .row { min-width: 0; } /* a grid item grows to fit its track of cards otherwise, widening the page */
   .row h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-2); font-size: var(--text-lg); margin-bottom: var(--space-3); }
   .row h2 :global(.icon) { color: var(--accent); align-self: center; }

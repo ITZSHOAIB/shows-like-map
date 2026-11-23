@@ -1,0 +1,357 @@
+---
+// Is it worth getting through? (epic #42, decision 0014). The payoff curve as a skyline cut from the show's poster:
+// every episode a building as tall as its rating, every season a block, a street between. Grey where it's warming up
+// or past its best; the best season lit amber. Tap a season (or an episode, for a single season) to lift it and hear
+// what it is. The words above it say the same, so the picture is never the only way in.
+import Icon from "./Icon.astro";
+import { CEIL, FLOOR, endingWords, hoursLabel, levelOf, round, seasonName, seasonTag, type Arc, type Ep } from "../lib/payoff";
+const { arc, id, poster, anthology = false } = Astro.props as {
+  arc: Arc; id: string; poster: string | null; anthology?: boolean;
+};
+
+const W = 1000, H = 300, STREET = 7;
+// A building is as wide as its hours, measured against the sky's height: a short show stands as a small town in the
+// middle, a long one fills the width.
+const TOWN = 0.2; // town width, in sky heights, per hour
+const art = poster?.replace("/medium_portrait/", "/original_untouched/") ?? null;
+const artAt = "center 22%";
+
+// The shared window: a 6 is a stump, a 9.5 nearly fills the sky (headroom left for the lift and the star).
+const frac = (v: number) => 0.05 + 0.83 * ((Math.min(CEIL, Math.max(FLOOR, v)) - FLOOR) / (CEIL - FLOOR));
+const top = (v: number) => H - H * frac(v);
+const scale = (W - STREET * (arc.seasons.length - 1)) / arc.hours;
+const si = new Map(arc.seasons.map((s, i) => [s.n, i]));
+const x = (h: number, season: number) => h * scale + si.get(season)! * STREET;
+const pct = (n: number, of: number) => `${((n / of) * 100).toFixed(2)}%`;
+
+// Lit from where it gets going to where it fades.
+const from = arc.slowStart?.hours ?? 0, to = arc.fadeAfter?.hours ?? arc.hours;
+// One season: the episodes are what you tap. Otherwise the seasons.
+const single = arc.seasons.length === 1;
+// Up to DETAIL episodes, a building each. A longer run would be hairlines, and hundreds of paths: a building per season
+// instead, or for one long season a block of episodes. The words above still come from every episode.
+const DETAIL = 120;
+type Unit = Ep & { to?: number }; // a block runs from episode `number` to `to`
+const meanOf = (eps: Ep[]) => {
+  const r = eps.flatMap((e) => (e.rating === null ? [] : [e.rating]));
+  return r.length ? r.reduce((a, b) => a + b, 0) / r.length : null;
+};
+const group = (eps: Ep[]): Unit => ({ ...eps[0], to: eps.at(-1)!.number, rating: meanOf(eps), end: eps.at(-1)!.end });
+// Even blocks, so no lone episode trails at the end.
+const blocksOf = (eps: Ep[], m: number) => Array.from({ length: m }, (_, i) => eps.slice(Math.floor((i * eps.length) / m), Math.floor(((i + 1) * eps.length) / m)));
+const units: Unit[] = arc.episodes.length <= DETAIL ? arc.episodes
+  : single ? blocksOf(arc.episodes, 24).map(group)
+  : arc.seasons.map((s) => group(s.eps));
+const epName = (e: Unit, cap = false) =>
+  e.to && e.to !== e.number ? `${cap ? "Episodes" : "episodes"} ${e.number}–${e.to}` : `${cap ? "Episode" : "episode"} ${e.number}`;
+
+const buildings = units.map((e) => {
+  const s = arc.seasons[si.get(e.season)!];
+  const v = e.rating ?? s.mean ?? arc.mean;
+  // Gaps a fraction of the building, so a wide one still reads as its own tower.
+  const x0 = x(e.start, e.season), x1 = x(e.end, e.season), w = x1 - x0, gap = Math.min(w * 0.22, Math.max(1.4, w * 0.05));
+  return { e, x0: x0 + gap / 2, x1: x1 - gap / 2, y: top(v), lit: e.start >= from - 0.01 && e.end <= to + 0.01, best: s === arc.best };
+});
+type Building = (typeof buildings)[number];
+const rects = (bs: Building[]) => bs.map((b) => `M${b.x0.toFixed(1)} ${b.y.toFixed(1)}H${b.x1.toFixed(1)}V${H}H${b.x0.toFixed(1)}Z`).join("");
+const maskOf = (d: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${d}"/></svg>`)}")`;
+
+const spotOf = (b: Building) => (single ? `e${b.e.number}` : `s${b.e.season}`);
+
+// Blocks: runs of buildings in one spot that are all lit or all grey, so a slow first few episodes can grey alone.
+const blocks: { spot: string; i: number; lit: boolean; bs: Building[] }[] = [];
+for (const b of buildings) {
+  const last = blocks.at(-1);
+  if (last && last.spot === spotOf(b) && last.lit === b.lit) last.bs.push(b);
+  else blocks.push({ spot: spotOf(b), i: single ? buildings.indexOf(b) : si.get(b.e.season)!, lit: b.lit, bs: [b] });
+}
+
+// The peak: the tallest building of the best season (or of the show, for a single season).
+const rated = buildings.filter((b) => b.e.rating !== null);
+const tallest = (bs: Building[]) => (bs.length ? bs.reduce((a, b) => (b.y < a.y ? b : a)) : null);
+const peak = single ? tallest(rated) : arc.best ? tallest(rated.filter((b) => b.best)) : null;
+const TYPICAL = 7.7; // the middle show in the catalogue
+
+const lastSeason = arc.seasons.at(-1)!;
+const ends = () => `${endingWords(arc.ending, arc.finale).replace(/^./, (c) => c.toUpperCase())}.`;
+type Spot = { key: string; l: number; r: number; label: string; best: boolean; head: string; role: string; tail: string };
+const spots: Spot[] = single
+  ? buildings.map((b, i): Spot => {
+      const e = b.e, last = i === buildings.length - 1;
+      const going = arc.slowStart?.episode, end = e.to ?? e.number;
+      const role = going && end < going ? "Still warming up."
+        : going && e.number <= going && going <= end ? "Where it gets going."
+        : b === peak ? (e.to ? "Its best stretch." : "Its best episode.")
+        : last && arc.ending === "ended" ? ends() : "";
+      return {
+        key: `e${e.number}`, l: b.x0, r: b.x1, label: e.to ? `${e.number}–${e.to}` : `E${e.number}`, best: b === peak, role,
+        head: e.rating === null ? `${epName(e, true)} · not rated` : `${epName(e, true)} · ${e.rating.toFixed(1)} · ${levelOf(e.rating)}`,
+        tail: `${hoursLabel(e.start)} in`,
+      };
+    })
+  : arc.seasons.map((s): Spot => {
+      const role = anthology ? (s === arc.best ? "The best of them." : "")
+        : arc.slowStart?.season && s.n < arc.slowStart.season ? "Still warming up."
+        : arc.slowStart?.season === s.n ? "Where it gets going."
+        : arc.slowStart?.episode && s === arc.seasons[0] ? `Gets going at episode ${arc.slowStart.episode}.`
+        : arc.fadeAfter && s.n > arc.fadeAfter.season
+          ? (s === lastSeason && arc.finale === "divides" ? "Past its best, and the ending divides viewers." : "Past its best: a fine place to have stopped.")
+        : s === arc.best ? "Its best season."
+        : s === lastSeason && arc.ending === "ended" ? ends() : "";
+      return {
+        key: `s${s.n}`, l: x(s.start, s.n), r: x(s.end, s.n), label: seasonTag(s.n), best: s === arc.best, role,
+        head: s.mean === null ? `${seasonName(s.n, true)} · too few ratings` : `${seasonName(s.n, true)} · ${round(s.mean).toFixed(1)} · ${levelOf(s.mean)}`,
+        tail: `${s.eps.length} episodes · ${hoursLabel(s.start)}–${hoursLabel(s.end)} in`,
+      };
+    });
+
+const lit = arc.verdict.replace(/\b(great|good|decent|weak|fades|ends on a high|divides viewers|best: (?:season )?\d+)\b/gi, "<em>$1</em>");
+const tiles = [
+  arc.slowStart
+    ? { k: "Gets good", v: hoursLabel(arc.slowStart.hours), s: arc.slowStart.season ? `in · ${seasonName(arc.slowStart.season)}` : `in · episode ${arc.slowStart.episode}` }
+    : { k: "Gets good", v: "At once", s: "no warming up" },
+  !single && arc.best ? { k: "Peak", v: seasonName(arc.best.n, true), s: arc.best.start < 0.5 ? `the first ${hoursLabel(arc.best.end)}` : `${hoursLabel(arc.best.start)} to ${hoursLabel(arc.best.end)} in` }
+    : single && peak ? { k: "Peak", v: epName(peak.e, true), s: peak.e.start < 0.5 ? "the very first" : `${hoursLabel(peak.e.start)} in` } : null,
+  arc.fadeAfter
+    ? { k: "Stop at", v: hoursLabel(arc.fadeAfter.hours), s: `after ${seasonName(arc.fadeAfter.season)}, if you like` }
+    : { k: "All of it", v: hoursLabel(arc.hours), s: endingWords(arc.ending, arc.finale) },
+].filter(Boolean) as { k: string; v: string; s: string }[];
+const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
+---
+
+<section class="sky" style={`--step:${Math.min(50, 450 / spots.length).toFixed(0)}ms;--n:${spots.length}`} aria-labelledby={`${id}-q`}>
+  <h2 class="sky-q"><Icon name="buildings" /> <span id={`${id}-q`}>Is it worth getting through?</span></h2>
+  <p class="sky-verdict" set:html={lit} />
+
+  <div class="sky-stage" data-art={art} style={`--town:${(arc.hours * TOWN).toFixed(2)};--art-at:${artAt}${art ? ";--art:linear-gradient(#1a1c22, #1a1c22)" : ""}`}>
+    <div class="sky-back" aria-hidden="true"></div>
+    <span class="sky-typical" style={`top:calc(var(--ground) * ${(1 - frac(TYPICAL)).toFixed(3)})`} aria-hidden="true"><b>typical show</b></span>
+    <div class="sky-town" style={peak ? `--peak:${pct((peak.x0 + peak.x1) / 2, W)}` : undefined}>
+      <div class="sky-city" aria-hidden="true">
+        <div class="sky-ghost"></div>
+        {arc.best && !single && (
+          <svg class="sky-glow" data-spot={peak && spotOf(peak)} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+            <defs><filter id={`${id}-blur`} x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="10" /></filter></defs>
+            <path d={rects(buildings.filter((b) => b.best))} filter={`url(#${id}-blur)`} />
+          </svg>
+        )}
+        {blocks.map((k) => (
+          <div class:list={["sky-block", !k.lit && "dim"]} data-spot={k.spot} style={`--mask:${maskOf(rects(k.bs))};--i:${k.i}`}></div>
+        ))}
+        <svg class="sky-roofs" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+          {buildings.map((b, i) => (
+            <path data-spot={spotOf(b)} style={`--i:${single ? i : si.get(b.e.season)};--h:${(H - b.y).toFixed(1)}`} class:list={["pane", !b.lit && "dim"]}
+              d={`M${b.x0.toFixed(1)} ${H}V${b.y.toFixed(1)}H${b.x1.toFixed(1)}V${H}`} vector-effect="non-scaling-stroke" />
+          ))}
+          {buildings.map((b, i) => (
+            <path data-spot={spotOf(b)} style={`--i:${single ? i : si.get(b.e.season)};--h:${(H - b.y).toFixed(1)}`} class:list={[!b.lit && "dim", (single ? b === peak : b.best) && "best"]}
+              d={`M${b.x0.toFixed(1)} ${b.y.toFixed(1)}H${b.x1.toFixed(1)}`} vector-effect="non-scaling-stroke" />
+          ))}
+        </svg>
+        {peak && <span class="sky-peak" data-spot={spotOf(peak)} style={`left:${pct((peak.x0 + peak.x1) / 2, W)};top:${pct(peak.y, H)}`}>★</span>}
+      </div>
+
+      <div class="sky-spots" role="group" aria-label={single ? "Episodes" : "Seasons"}>
+        {spots.map((q, i) => (
+          <button type="button" data-spot={q.key} data-say={`${q.head}${q.role ? ` · ${q.role}` : ""}`} data-tail={q.tail}
+            style={`left:${pct(q.l, W)};width:${pct(q.r - q.l, W)};--i:${i}`} aria-pressed="false"
+            aria-label={`${q.head.startsWith(q.label) ? "" : `${q.label}, `}${q.head}. ${q.role} ${q.tail}.`}>
+            <span class:list={[q.best && "best"]}>{(q.r - q.l) / W >= 0.035 ? q.label : ""}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <p class="sky-say"><b>{hint}</b><span></span></p>
+
+  <dl class="sky-tiles">
+    {tiles.map((t) => <div><dt>{t.k}</dt><dd><b>{t.v}</b> <span>{t.s}</span></dd></div>)}
+  </dl>
+</section>
+
+<script>
+  const still = matchMedia("(prefers-reduced-motion: reduce)");
+  for (const sky of document.querySelectorAll<HTMLElement>(".sky")) {
+    const say = sky.querySelector<HTMLElement>(".sky-say")!;
+    const lead = say.querySelector("b")!, rest = say.querySelector("span")!;
+    const hint = lead.textContent!;
+    const buttons = [...sky.querySelectorAll<HTMLButtonElement>(".sky-spots button")];
+    let picked: string | null = null;
+    const show = (n: string | null) => {
+      sky.classList.toggle("lifting", n !== null);
+      for (const el of sky.querySelectorAll<Element>(".sky-city [data-spot]")) el.classList.toggle("up", el.getAttribute("data-spot") === n);
+      const b = buttons.find((b) => b.dataset.spot === n);
+      lead.textContent = b ? b.dataset.say! : hint;
+      rest.textContent = b ? ` · ${b.dataset.tail}` : "";
+    };
+    for (const b of buttons) {
+      b.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") show(b.dataset.spot!); });
+      b.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") show(picked); });
+      b.addEventListener("focus", () => show(b.dataset.spot!));
+      b.addEventListener("blur", () => show(picked));
+      b.addEventListener("click", () => {
+        picked = picked === b.dataset.spot ? null : b.dataset.spot!;
+        for (const o of buttons) o.setAttribute("aria-pressed", String(o.dataset.spot === picked));
+        show(picked);
+      });
+    }
+
+    // A label shows only where it fits its season: years and episode blocks run wider than "S3", and phones are narrow.
+    const fit = () => {
+      for (const b of buttons) {
+        const label = b.querySelector("span")!;
+        label.classList.remove("cramped");
+        label.classList.toggle("cramped", label.offsetWidth > b.clientWidth - 4);
+      }
+    };
+    new ResizeObserver(fit).observe(sky.querySelector(".sky-spots")!);
+
+    // The full-size poster waits until the chart is near, so it doesn't compete with the top of the page.
+    const stage = sky.querySelector<HTMLElement>(".sky-stage")!;
+    if (stage.dataset.art) {
+      new IntersectionObserver((seen, io) => {
+        if (!seen.some((s) => s.isIntersecting)) return;
+        io.disconnect();
+        stage.style.setProperty("--art", `url("${stage.dataset.art}")`);
+      }, { rootMargin: "600px 0px" }).observe(stage);
+    }
+
+    // Arriving: the city rises out of the water, season after season. Once.
+    if (still.matches) { sky.classList.add("in", "done"); continue; }
+    new IntersectionObserver((seen, io) => {
+      if (!seen.some((s) => s.isIntersecting)) return;
+      io.disconnect();
+      sky.classList.add("in");
+      setTimeout(() => sky.classList.add("done"), 2200);
+    }, { threshold: 0.35 }).observe(stage);
+  }
+</script>
+
+<style is:global>
+  .sky { position: relative; isolation: isolate; padding: var(--space-6) 0 var(--space-4); }
+  .sky-q { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); font-size: var(--text-lg); }
+  .sky-q .icon { color: var(--accent); }
+  .sky-verdict {
+    margin: 0 0 var(--space-6); max-width: 22ch;
+    font: var(--display-weight) clamp(28px, 6.4vw, 52px) / 1.04 var(--font-display); letter-spacing: -0.03em;
+    text-wrap: balance; color: #c9cdd9;
+  }
+  .sky-verdict em { font-style: normal; color: var(--accent); }
+
+  /* The city stands on a waterline; below it, its reflection and the names. A short show is a small town mid-stage. */
+  .sky-stage { --ground: clamp(170px, 30vw, 270px); position: relative; height: calc(var(--ground) + 58px); }
+  .sky-stage::after { content: ""; position: absolute; inset: var(--ground) 0 auto; height: 1px; background: rgb(255 255 255 / 0.14); }
+  .sky-back {
+    position: absolute; inset: -12% -6% 10%; z-index: -1; pointer-events: none;
+    background: var(--art, none) var(--art-at, center) / cover; filter: blur(48px) saturate(1.3); opacity: 0.22;
+    mask-image: radial-gradient(60% 70% at 50% 55%, #000 30%, transparent 80%);
+  }
+  .sky-town { position: absolute; top: 0; bottom: 0; left: 50%; translate: -50% 0; width: min(100%, calc(var(--ground) * var(--town))); }
+  /* A warm light behind the peak. */
+  .sky-town::before {
+    content: ""; position: absolute; z-index: -1; inset: -20% -30% 20%; pointer-events: none;
+    background: radial-gradient(closest-side, rgb(255 211 107 / 0.16), transparent) var(--peak, 50%) 40% / 60% 90% no-repeat;
+  }
+  .sky-city {
+    position: absolute; inset: 0 0 auto; height: var(--ground); overflow: hidden;
+    -webkit-box-reflect: below 1px linear-gradient(transparent 76%, rgb(0 0 0 / 0.3));
+  }
+  .sky-block, .sky-glow, .sky-roofs { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* Each bar is a pane of glass over the picture: a sheen at the top, and a fine edge (drawn with the roofs) that
+     carries the shape where the poster is dark. */
+  .sky-block {
+    background: linear-gradient(rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04) 30%, transparent 60%), var(--art, linear-gradient(#ffd36b, #8a5a2b)) var(--art-at, center) / cover;
+    -webkit-mask: var(--mask) 0 100% / 100% 100% no-repeat; mask: var(--mask) 0 100% / 100% 100% no-repeat;
+    filter: saturate(1.15) brightness(1.05);
+  }
+  .sky-block.dim { filter: grayscale(1) brightness(0.42) contrast(0.9); }
+
+  /* The full picture, faint in the sky: the buildings are where it's lit. */
+  .sky-ghost {
+    position: absolute; inset: 0; background: var(--art, none) var(--art-at, center) / cover; filter: brightness(0.24) saturate(0.7);
+    -webkit-mask: linear-gradient(transparent, #000 45%); mask: linear-gradient(transparent, #000 45%);
+  }
+  .sky-glow path { fill: var(--accent); opacity: 0.38; }
+  .sky-roofs path { stroke: rgb(255 255 255 / 0.75); stroke-width: 1.5px; fill: none; }
+  .sky-roofs path.dim { stroke: rgb(255 255 255 / 0.22); }
+  .sky-roofs path.best { stroke: var(--accent); stroke-width: 2.5px; }
+  .sky-roofs path.pane { stroke: rgb(255 255 255 / 0.26); stroke-width: 1px; }
+  .sky-roofs path.pane.dim { stroke: rgb(255 255 255 / 0.08); }
+
+  .sky-typical { position: absolute; left: 0; right: 0; border-top: 1px dashed rgb(255 255 255 / 0.28); pointer-events: none; z-index: 1; }
+  .sky-typical b { position: absolute; right: 0; bottom: 3px; font: 600 10px var(--font-body); letter-spacing: var(--eyebrow-tracking); text-transform: uppercase; color: rgb(238 240 246 / 0.7); padding: 1px 6px; border-radius: 6px; background: rgb(7 8 12 / 0.72); }
+  .sky-peak { position: absolute; translate: -50% -125%; font-size: 18px; line-height: 1; color: var(--accent); text-shadow: 0 0 14px rgb(255 211 107 / 0.9); pointer-events: none; z-index: 1; }
+
+  /* Lifting: the picked season or episode rises a little and the rest of the city steps back. */
+  .sky-block, .sky-roofs path, .sky-glow, .sky-peak { transition: translate 0.28s var(--ease), opacity 0.28s var(--ease); }
+  .sky-block.up, .sky-glow.up { translate: 0 -5%; }
+  .sky-roofs path.up { translate: 0 -15px; } /* 5% of the 300-unit sky */
+  .sky-peak.up { translate: -50% calc(-125% - var(--ground) * 0.05); } /* the star rides its season up */
+  .sky.lifting :is(.sky-block, .sky-roofs path, .sky-glow, .sky-peak):not(.up) { opacity: 0.4; }
+
+  .sky-spots { position: absolute; inset: 0; }
+  .sky-spots button {
+    position: absolute; top: 0; bottom: 0; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 6px; overflow: hidden;
+    display: flex; align-items: flex-end; justify-content: center; color: var(--muted); font: 600 var(--text-xs) var(--font-body);
+  }
+  .sky-spots button span { padding-bottom: 14px; white-space: nowrap; }
+  .sky-spots button span.cramped { visibility: hidden; }
+  .sky-spots button span.best { color: var(--accent); }
+  .sky-spots button[aria-pressed="true"] span, .sky-spots button:hover span { color: var(--text); }
+  .sky-spots button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .sky-say { min-height: 1.5em; margin: var(--space-3) 0 var(--space-6); font: 700 clamp(17px, 3.4vw, 22px) / 1.3 var(--font-display); color: var(--text); }
+  .sky-say span { font: 500 var(--text-sm) var(--font-body); color: var(--muted); }
+
+  /* Arriving, once. The picture is one fixed surface and the chart is glass over it: the bars grow up from the ground,
+     uncovering it (the picture never moves), each roof riding its bar's top. Then the marks land, and last the rest of
+     the same picture fades in around them. --end is when the last season is up. */
+  .sky { --end: calc(var(--n) * var(--step) + 450ms); }
+  /* Only when the script that brings it in can run: without it, the city simply stands. */
+  @media (scripting: enabled) {
+    .sky:not(.in) .sky-ghost { opacity: 0; }
+    .sky:not(.in) .sky-back { opacity: 0; }
+    .sky:not(.in) .sky-block { -webkit-mask-size: 100% 0%; mask-size: 100% 0%; }
+    .sky:not(.in) .sky-roofs path { translate: 0 calc(var(--h) * 1px); }
+    .sky:not(.in) .sky-glow { opacity: 0; }
+    .sky:not(.in) .sky-typical { clip-path: inset(-24px 100% -4px 0); }
+    .sky:not(.in) .sky-peak { opacity: 0; scale: 0.3; }
+    .sky:not(.in) :is(.sky-spots button span, .sky-say, .sky-tiles > div) { opacity: 0; translate: 0 8px; }
+  }
+  .sky.in:not(.done) .sky-ghost { transition: opacity 1.4s var(--ease) calc(var(--end) * 0.45); }
+  .sky.in:not(.done) .sky-back { transition: opacity 1.2s var(--ease) calc(var(--end) * 0.6); }
+  .sky.in:not(.done) .sky-block { transition: -webkit-mask-size 0.55s var(--ease) calc(var(--i, 0) * var(--step)), mask-size 0.55s var(--ease) calc(var(--i, 0) * var(--step)); }
+  .sky.in:not(.done) .sky-roofs path { transition: translate 0.55s var(--ease) calc(var(--i, 0) * var(--step)); }
+  .sky.in:not(.done) .sky-glow { transition: opacity 0.5s var(--ease) calc(var(--end) - 150ms); }
+  .sky.in:not(.done) .sky-typical { clip-path: inset(-24px 0 -4px 0); transition: clip-path 0.5s var(--ease) calc(var(--end) - 250ms); }
+  .sky.in:not(.done) .sky-peak { transition: opacity 0.2s var(--end), scale 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) var(--end); }
+  .sky.in:not(.done) .sky-spots button span { transition: opacity 0.3s var(--ease), translate 0.3s var(--ease); transition-delay: calc(150ms + var(--i, 0) * var(--step)); }
+  .sky.in:not(.done) .sky-say { transition: opacity 0.35s var(--ease) var(--end), translate 0.35s var(--ease) var(--end); }
+  .sky.in:not(.done) .sky-tiles > div { transition: opacity 0.35s var(--ease), translate 0.35s var(--ease); }
+  .sky.in:not(.done) .sky-tiles > div:nth-child(1) { transition-delay: calc(var(--end) + 60ms); }
+  .sky.in:not(.done) .sky-tiles > div:nth-child(2) { transition-delay: calc(var(--end) + 120ms); }
+  .sky.in:not(.done) .sky-tiles > div:nth-child(3) { transition-delay: calc(var(--end) + 180ms); }
+
+  .sky-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); grid-auto-flow: column; gap: var(--space-2); margin: 0; }
+  @media (min-width: 720px) { .sky-tiles { gap: var(--space-3); } }
+  .sky-tiles div { padding: var(--space-3) clamp(10px, 2.5vw, 16px); border-radius: var(--radius-media); background: var(--surface); border: 1px solid var(--line); }
+  .sky-tiles dt { font: 600 11px var(--font-body); color: var(--muted); letter-spacing: var(--eyebrow-tracking); text-transform: uppercase; }
+  .sky-tiles dd { margin: var(--space-2) 0 0; }
+  .sky-tiles b { display: block; font: 800 clamp(19px, 5vw, 34px) / 1.05 var(--font-display); letter-spacing: -0.02em; }
+  .sky-tiles span { display: block; margin-top: 6px; font-size: var(--text-xs); color: var(--muted); }
+  @media (min-width: 720px) { .sky-tiles span { font-size: var(--text-sm); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sky * { transition: none !important; }
+  }
+  @media (forced-colors: active) {
+    .sky-block { forced-color-adjust: none; background: CanvasText; }
+    .sky-block.dim { background: GrayText; filter: none; }
+    .sky-glow, .sky-back, .sky-town::before { display: none; }
+    .sky-roofs { forced-color-adjust: none; }
+    .sky-roofs path, .sky-roofs path.best { stroke: Highlight; }
+    .sky-typical { border-color: CanvasText; }
+  }
+</style>

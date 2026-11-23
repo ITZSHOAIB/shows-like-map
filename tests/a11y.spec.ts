@@ -125,3 +125,44 @@ test("axe and no sideways scroll at 320px with a filter on and the row further o
   expect((await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
+
+// The payoff skyline: tested once it has risen, since axe skips what's still hidden for the arrival.
+test.describe("the payoff skyline", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/shows/breaking-bad/");
+    test.skip((await page.locator(".sky").count()) === 0, "the catalogue predates runs: run the data job");
+  });
+
+  test("passes axe with a season picked, and fits 320px", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.locator(".sky").scrollIntoViewIfNeeded();
+    await expect(page.locator(".sky.done")).toHaveCount(1, { timeout: 5000 });
+    await page.locator(".sky-spots button").nth(1).click();
+    expect((await new AxeBuilder({ page }).include(".sky").withTags(TAGS).analyze()).violations).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  });
+
+  test("seasons are reached by keyboard, show focus, and say themselves", async ({ page }) => {
+    const first = page.locator(".sky-spots button").first();
+    await first.focus();
+    await expect(first).toHaveCSS("outline-style", "solid");
+    await expect(page.locator(".sky-say b")).toContainText("Season 1 ·");
+    await page.keyboard.press("Enter");
+    await expect(first).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("risen at once when reduced motion is on", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.reload();
+    await expect(page.locator(".sky")).toHaveClass(/\bdone\b/);
+  });
+
+  test("in forced colours the picked season keeps a visible focus ring", async ({ page }) => {
+    await page.emulateMedia({ forcedColors: "active" });
+    await page.reload();
+    const first = page.locator(".sky-spots button").first();
+    await first.focus();
+    await expect(first).toHaveCSS("outline-style", "solid");
+    await expect(page.locator(".sky-verdict")).toBeVisible();
+  });
+});
