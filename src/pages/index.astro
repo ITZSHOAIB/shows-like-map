@@ -65,6 +65,7 @@ const collage = picksIn(catalogue).filter((s) => s.poster).slice(0, 8);
         </p>
       </div>
     </div>
+    <p class="peek-hint wrap" id="peek-hint" hidden><Icon name="hand-tap" /> Hold any show card to peek</p>
     {/* Before the rows and the wall are parsed, so saved chips never flash the page without their row. */}
     <script is:inline define:vars={{ limits: HOUR_LIMITS }}>
       function restoreTime() {
