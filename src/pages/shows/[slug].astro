@@ -206,7 +206,7 @@ const jsonLd = structuredData(show, new URL(path, Astro.site).href, new URL("/",
                 {matches.map((m, i) => <li {...filterAttrs(m.show)} style={`--i: ${i}`}><MatchCard match={m.match} show={m.show} eager={i < 3} /></li>)}
               </ul>
             </Rail>
-            {linked && <p class="peek-hint wrap" id="peek-hint" hidden><Icon name="hand-tap" /> Hold any show card to peek</p>}
+            {linked && <p class="peek-hint wrap" id="peek-hint" hidden><Icon name="hand-tap" /> Hold a poster to peek</p>}
             {linked && <p class="sr-only" id="filters-status" aria-live="polite"></p>}
           </section>
           {/* Shown only while a filter is on and this show's own matches run thin: the shows its matches lead to, filtered the same way. */}
