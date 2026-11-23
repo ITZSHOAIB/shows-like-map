@@ -218,41 +218,25 @@ const hint = `Tap ${single ? "an episode" : "a season"} to see what it is.`;
     -webkit-box-reflect: below 1px linear-gradient(transparent 76%, rgb(0 0 0 / 0.3));
   }
   .sky-block, .sky-glow, .sky-roofs { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* Each bar is a pane of glass over the picture: a sheen at the top, and a fine edge (drawn with the roofs) that
+     carries the shape where the poster is dark. */
   .sky-block {
-    background: linear-gradient(rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.03) 60%), var(--art, linear-gradient(#ffd36b, #8a5a2b)) var(--art-at, center) / cover;
+    background: linear-gradient(rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04) 30%, transparent 60%), var(--art, linear-gradient(#ffd36b, #8a5a2b)) var(--art-at, center) / cover;
     -webkit-mask: var(--mask) 0 100% / 100% 100% no-repeat; mask: var(--mask) 0 100% / 100% 100% no-repeat;
     filter: saturate(1.15) brightness(1.05);
   }
   .sky-block.dim { filter: grayscale(1) brightness(0.42) contrast(0.9); }
-  /* PROTOTYPE looks for dark posters, picked with ?look= on the page. */
-  /* now: the picture screened over a grey floor. */
-  [data-look="now"] .sky-block { background-color: #42454e; background-blend-mode: normal, screen; }
-  [data-look="now"] .sky-block.dim { background-color: #2c2e34; }
-  /* panes and frost: each bar a pane of glass, a fine edge and a sheen, over a darker sky. */
-  :is([data-look="panes"], [data-look="frost"]) .sky-block {
-    background: linear-gradient(rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.04) 30%, transparent 60%), var(--art, linear-gradient(#ffd36b, #8a5a2b)) var(--art-at, center) / cover;
-  }
-  :is([data-look="panes"], [data-look="frost"], [data-look="glow"]) .sky-roofs path.pane { display: inline; }
-  [data-look]:not([data-look="now"]) .sky-ghost { filter: brightness(0.24) saturate(0.7); }
-  /* frost: the sky around the bars goes soft; the bars stay sharp and a touch brighter. */
-  [data-look="frost"] .sky-ghost { filter: blur(7px) brightness(0.26) saturate(0.7); }
-  [data-look="frost"] .sky-block:not(.dim) { filter: saturate(1.15) brightness(1.18); }
-  /* glow: panes, and light falling from each roof down its bar, warm on the lit stretch. */
-  [data-look="glow"] .sky-block {
-    background: linear-gradient(rgb(255 238 205 / 0.3), rgb(255 211 107 / 0.1) 40%, transparent 85%), var(--art, linear-gradient(#ffd36b, #8a5a2b)) var(--art-at, center) / cover;
-  }
-  [data-look="glow"] .sky-block.dim { background: linear-gradient(rgb(255 255 255 / 0.22), transparent 70%), var(--art, none) var(--art-at, center) / cover; }
 
   /* The full picture, faint in the sky: the buildings are where it's lit. */
   .sky-ghost {
-    position: absolute; inset: 0; background: var(--art, none) var(--art-at, center) / cover; filter: brightness(0.3) saturate(0.7);
+    position: absolute; inset: 0; background: var(--art, none) var(--art-at, center) / cover; filter: brightness(0.24) saturate(0.7);
     -webkit-mask: linear-gradient(transparent, #000 45%); mask: linear-gradient(transparent, #000 45%);
   }
   .sky-glow path { fill: var(--accent); opacity: 0.38; }
   .sky-roofs path { stroke: rgb(255 255 255 / 0.75); stroke-width: 1.5px; fill: none; }
   .sky-roofs path.dim { stroke: rgb(255 255 255 / 0.22); }
   .sky-roofs path.best { stroke: var(--accent); stroke-width: 2.5px; }
-  .sky-roofs path.pane { display: none; stroke: rgb(255 255 255 / 0.26); stroke-width: 1px; }
+  .sky-roofs path.pane { stroke: rgb(255 255 255 / 0.26); stroke-width: 1px; }
   .sky-roofs path.pane.dim { stroke: rgb(255 255 255 / 0.08); }
 
   .sky-typical { position: absolute; left: 0; right: 0; border-top: 1px dashed rgb(255 255 255 / 0.28); pointer-events: none; z-index: 1; }
