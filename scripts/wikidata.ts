@@ -45,3 +45,10 @@ export async function detailsByTvmaze(ids: number[]): Promise<Record<number, Wik
   }
   return out;
 }
+
+/** TVmaze ids of shows whose genre is "anthology series" (Q23653), each season or episode its own story. Only the
+ *  genre itself: its sub-genres take in teen dramas. */
+export async function anthologyTvmazeIds(): Promise<number[]> {
+  const rows = await sparql("SELECT DISTINCT ?tvmaze WHERE { VALUES ?p { wdt:P136 wdt:P31 } ?item ?p wd:Q23653; wdt:P8600 ?tvmaze }");
+  return [...new Set(rows.map((r) => Number(r.tvmaze)))];
+}

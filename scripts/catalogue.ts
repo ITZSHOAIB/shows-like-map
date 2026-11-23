@@ -8,7 +8,7 @@ import { CATALOGUE, toShow, uniqueSlugs } from "../src/lib/catalogue.ts";
 import { loadLists } from "../src/lib/matches.ts";
 import { ringIds, selectSeeds } from "./seeds.ts";
 import { tvmaze } from "./tvmaze.ts";
-import { detailsByTvmaze, sitelinksByTvmaze } from "./wikidata.ts";
+import { anthologyTvmazeIds, detailsByTvmaze, sitelinksByTvmaze } from "./wikidata.ts";
 import { articleTexts, saysCancelled } from "./wikipedia.ts";
 
 const CACHE = "data/tvmaze";
@@ -29,6 +29,15 @@ async function sitelinks() {
     writeFileSync(file, JSON.stringify(await sitelinksByTvmaze()));
   }
   return JSON.parse(readFileSync(file, "utf8"));
+}
+
+async function anthologies(): Promise<Set<number>> {
+  const file = "data/wikidata/anthologies.json";
+  if (!existsSync(file)) {
+    mkdirSync("data/wikidata", { recursive: true });
+    writeFileSync(file, JSON.stringify(await anthologyTvmazeIds()));
+  }
+  return new Set(JSON.parse(readFileSync(file, "utf8")));
 }
 
 /** Wikidata id, English Wikipedia article and creators per TVmaze id; only ids not cached yet are queried. */
@@ -72,6 +81,7 @@ if (!args.length) {
 }
 
 const wd = await wikidata(ids);
+const anthology = await anthologies();
 const shows = [];
 for (const [i, id] of ids.entries()) {
   const file = `${CACHE}/shows/${id}.json`;
@@ -79,7 +89,7 @@ for (const [i, id] of ids.entries()) {
   if (existsSync(file) && !JSON.parse(readFileSync(file, "utf8"))._embedded?.cast) rmSync(file);
   const raw = await cached(file, `/shows/${id}?embed[]=episodes&embed[]=cast&embed[]=crew`);
   if (!raw) throw new Error(`TVmaze show ${id} not found`);
-  shows.push(toShow(raw, wd[id] ?? undefined));
+  shows.push(toShow(raw, wd[id] ?? undefined, new Date(), anthology.has(id)));
   if (i % 100 === 99) console.log(`${i + 1} / ${ids.length} shows`);
 }
 // Cancelled: the AI's "cancelled" counts only when the show's Wikipedia article says the series was cancelled.

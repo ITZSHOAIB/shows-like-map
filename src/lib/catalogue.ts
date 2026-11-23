@@ -23,10 +23,15 @@ export interface Show {
   poster: string | null; // TVmaze CDN, hotlinked
   summary: string | null; // plain text
   rating: number | null; // TVmaze users' average out of 10, when it has one (often not for Indian shows)
+  run: Run | null; // every aired regular episode in order, for the payoff curve; null when runtimes are unknown
+  anthology: boolean; // each season a new story (Wikidata genre "anthology series"), so it isn't judged as one arc
   tvmaze: string; // show page on TVmaze, for credit
   wikidata: string | null; // Q-id
   wikipedia: string | null; // English article
 }
+
+/** Episode by episode: [season, minutes, TVmaze users' rating or null]. */
+export type Run = [number, number, number | null][];
 
 /** What Wikidata adds to a show (CC0). */
 export interface Extra {
@@ -42,6 +47,7 @@ interface Episode {
   type: string;
   runtime: number | null;
   airstamp: string | null;
+  rating?: { average: number | null };
 }
 
 const STATUS: Record<string, Status> = {
@@ -62,6 +68,12 @@ export function minutesToFinish(episodes: Episode[], averageRuntime: number | nu
   return episodes.reduce((sum, e) => sum + (e.runtime ?? averageRuntime ?? 0), 0);
 }
 
+/** The run, timed the way minutesToFinish times it so the two add up. Null when there's no time to give an episode. */
+export function runOf(episodes: Episode[], averageRuntime: number | null): Run | null {
+  if (!episodes.length || (averageRuntime === null && episodes.some((e) => e.runtime === null))) return null;
+  return episodes.map((e) => [e.season, e.runtime ?? averageRuntime!, e.rating?.average ?? null]);
+}
+
 export function slugify(name: string): string {
   return name
     .normalize("NFKD")
@@ -77,8 +89,9 @@ const plain = (html: string | null) => html?.replace(/<[^>]+>/g, "").trim() || n
 const unique = (names: string[]) => [...new Set(names)];
 
 /** Turn a TVmaze show (fetched with episodes, cast and crew embedded) and its Wikidata extras into a catalogue record. */
-export function toShow(raw: any, extra?: Extra, now = new Date()): Show {
+export function toShow(raw: any, extra?: Extra, now = new Date(), anthology = false): Show {
   const eps = aired(raw._embedded?.episodes ?? [], now);
+  const runtime = raw.averageRuntime ?? raw.runtime ?? null;
   const creators = unique((raw._embedded?.crew ?? []).filter((c: any) => c.type === "Creator").map((c: any) => c.person.name));
   return {
     id: raw.id,
@@ -92,12 +105,14 @@ export function toShow(raw: any, extra?: Extra, now = new Date()): Show {
     genres: raw.genres ?? [],
     seasons: new Set(eps.map((e) => e.season)).size,
     episodes: eps.length,
-    minutes: minutesToFinish(eps, raw.averageRuntime ?? raw.runtime ?? null),
+    minutes: minutesToFinish(eps, runtime),
     creators: creators.length ? creators : (extra?.creators ?? []),
     cast: unique((raw._embedded?.cast ?? []).map((c: any) => c.person.name)).slice(0, CAST),
     poster: raw.image?.medium ?? null,
     summary: plain(raw.summary),
     rating: raw.rating?.average ?? null,
+    run: runOf(eps, runtime),
+    anthology,
     tvmaze: raw.url,
     wikidata: extra?.wikidata ?? null,
     wikipedia: extra?.wikipedia ?? null,

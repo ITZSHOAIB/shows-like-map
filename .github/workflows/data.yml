@@ -50,6 +50,11 @@ jobs:
         run: pip install --quiet huggingface_hub && pnpm catalogue:push
         env:
           HF_TOKEN: ${{ secrets.HF_WRITE_TOKEN }}
+      # The payoff PR preview gets its own catalogue so it can show episode ratings without changing production data.
+      - if: github.ref == 'refs/heads/payoff-build'
+        run: pip install --quiet huggingface_hub && pnpm catalogue:push-preview
+        env:
+          HF_TOKEN: ${{ secrets.HF_WRITE_TOKEN }}
       # Cloudflare Pages rebuilds only on pushes; the deploy hook ships the new data without one.
       - if: github.ref == 'refs/heads/main'
         run: curl -fsS -X POST "$CF_DEPLOY_HOOK" > /dev/null

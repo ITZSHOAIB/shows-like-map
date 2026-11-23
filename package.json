@@ -18,6 +18,7 @@
     "matches:push": "node scripts/matches/store.ts push",
     "matches:pull": "node scripts/matches/store.ts pull",
     "catalogue:push": "node scripts/catalogue-store.ts push",
+    "catalogue:push-preview": "node scripts/catalogue-store.ts push-preview",
     "catalogue:pull": "node scripts/catalogue-store.ts pull"
   },
   "dependencies": {
